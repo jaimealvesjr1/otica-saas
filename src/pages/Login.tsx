@@ -43,7 +43,9 @@ export default function Login() {
         width: '100%',
         maxWidth: '350px'
       }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>👓 Ótica SaaS</h2>
+        <div style={{ padding: '20px', textAlign: 'center', backgroundColor: 'white' }}>
+          <img src="/logo.png" alt="Ótica Milenium" style={{ maxWidth: '300px', maxHeight: '80px', textAlign: 'center' }} />
+        </div>
         
         {erro && <p style={{ color: 'red', textAlign: 'center', fontSize: '14px' }}>{erro}</p>}
 

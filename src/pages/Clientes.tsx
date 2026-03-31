@@ -8,6 +8,7 @@ interface Receita { tipo: string; od: string; oe: string; }
 
 export default function Clientes() {
   const [clientes, setClientes] = useState<any[]>([]);
+  const [mostrarForm, setMostrarForm] = useState(false);
   
   // Campos Básicos
   const [nome, setNome] = useState('');
@@ -57,14 +58,18 @@ export default function Clientes() {
       dadosClinicos: { medico, ultimaConsulta, observacoes, receitas }
     });
     alert('Ficha cadastrada com sucesso!');
+    setMostrarForm(false); // Fecha o form após salvar
     buscarClientes();
-    // Limpar os campos omitido para focar na lógica...
+    // Limpar os campos
+    setNome(''); setCpf(''); setTelefone(''); setDataNascimento('');
+    setLogradouro(''); setNumero(''); setComplemento(''); setBairro(''); setCidade('');
+    setMedico(''); setUltimaConsulta(''); setObservacoes(''); setReceitas([{ tipo: '', od: '', oe: '' }]);
   };
 
   const salvarEdicao = async () => {
     try {
       const clienteRef = doc(db, 'clientes', clienteAtual.id);
-      await updateDoc(clienteRef, { ...clienteAtual }); // Salva o estado modificado
+      await updateDoc(clienteRef, { ...clienteAtual });
       alert('Alterações salvas!');
       setModoEdicao(false);
       buscarClientes();
@@ -75,80 +80,89 @@ export default function Clientes() {
 
   return (
     <div>
-      <h2>👥 Clientes & Fichas Clínicas</h2>
-      <div className="card-formulario">
-        <form onSubmit={cadastrarCliente} style={{ display: 'grid', gap: '15px', gridTemplateColumns: '1fr 1fr' }}>
-          
-          <h4 style={{ gridColumn: 'span 2', borderBottom: '1px solid #eee', margin: 0 }}>Dados Pessoais</h4>
-          <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Nome Completo</label><input type="text" value={nome} onChange={e => setNome(e.target.value)} required /></div>
-          <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Celular / Telefone</label><input type="text" value={telefone} onChange={e => setTelefone(formatarTelefone(e.target.value))} required maxLength={15} /></div>
-          <div><label style={{fontWeight:'bold', fontSize:'12px'}}>CPF</label><input type="text" value={cpf} onChange={e => setCpf(formatarCPF(e.target.value))} maxLength={14} /></div>
-          <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Data de Nascimento</label><input type="date" value={dataNascimento} onChange={e => setDataNascimento(e.target.value)} /></div>
-
-          <h4 style={{ gridColumn: 'span 2', borderBottom: '1px solid #eee', margin: 0, marginTop: '10px' }}>Endereço</h4>
-          <div style={{ gridColumn: 'span 2' }}><label style={{fontWeight:'bold', fontSize:'12px'}}>Logradouro (Rua/Av)</label><input type="text" value={logradouro} onChange={e => setLogradouro(e.target.value)} /></div>
-          <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Número</label><input type="text" value={numero} onChange={e => setNumero(e.target.value)} /></div>
-          <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Complemento</label><input type="text" value={complemento} onChange={e => setComplemento(e.target.value)} /></div>
-          <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Bairro</label><input type="text" value={bairro} onChange={e => setBairro(e.target.value)} /></div>
-          <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Cidade</label><input type="text" value={cidade} onChange={e => setCidade(e.target.value)} /></div>
-
-          <h4 style={{ gridColumn: 'span 2', borderBottom: '1px solid #eee', margin: 0, marginTop: '10px' }}>Dados Oftalmológicos</h4>
-          <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Médico Responsável</label><input type="text" value={medico} onChange={e => setMedico(e.target.value)} /></div>
-          <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Data da Última Consulta</label><input type="date" value={ultimaConsulta} onChange={e => setUltimaConsulta(e.target.value)} /></div>
-          
-          <div style={{ gridColumn: 'span 2', padding: '15px', background: '#f8f9fa', borderRadius: '5px' }}>
-            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '10px', fontSize: '12px' }}>Receitas e Graus</label>
-            {receitas.map((rec, index) => (
-              <div key={index} style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-                <div style={{ flex: 1 }}><input type="text" placeholder="Doença (Ex: Miopia)" value={rec.tipo} onChange={e => atualizarReceita(index, 'tipo', e.target.value)} /></div>
-                <div style={{ width: '120px' }}><input type="text" placeholder="OD" value={rec.od} onChange={e => atualizarReceita(index, 'od', formatarGrau(e.target.value))} title="Apenas números, vírgula, + ou -" /></div>
-                <div style={{ width: '120px' }}><input type="text" placeholder="OE" value={rec.oe} onChange={e => atualizarReceita(index, 'oe', formatarGrau(e.target.value))} title="Apenas números, vírgula, + ou -" /></div>
-              </div>
-            ))}
-            <button type="button" onClick={adicionarLinhaReceita} style={{ background: '#17a2b8', color: 'white', padding: '5px 10px', fontSize: '12px' }}>+ Adicionar Grau Extra</button>
-          </div>
-          
-          <div style={{ gridColumn: 'span 2' }}>
-            <label style={{fontWeight:'bold', fontSize:'12px'}}>Observações Gerais</label>
-            <textarea value={observacoes} onChange={e => setObservacoes(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '5px', minHeight: '60px', border: '1px solid #ccc' }} />
-          </div>
-
-          <button type="submit" style={{ gridColumn: 'span 2', padding: '12px', marginTop: '10px' }}>💾 Salvar Ficha Completa</button>
-        </form>
+      <style>{`@media print { .no-print { display: none !important; } .print-only { display: block !important; } }`}</style>
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2 style={{ margin: 0 }}>👥 Clientes & Fichas Clínicas</h2>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={() => window.print()} style={{ background: '#17a2b8', color: 'white' }}>🖨️ Gerar Relatório</button>
+          <button onClick={() => setMostrarForm(!mostrarForm)} style={{ background: mostrarForm ? '#6c757d' : '#28a745', color: 'white' }}>
+            {mostrarForm ? 'Cancelar / Fechar' : '+ Novo Cliente'}
+          </button>
+        </div>
       </div>
 
+      {mostrarForm && (
+        <div className="card-formulario" style={{ marginBottom: '20px' }}>
+          <form onSubmit={cadastrarCliente} style={{ display: 'grid', gap: '15px', gridTemplateColumns: '1fr 1fr' }}>
+            
+            <h4 style={{ gridColumn: 'span 2', borderBottom: '1px solid #eee', margin: 0 }}>Dados Pessoais</h4>
+            <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Nome Completo</label><input type="text" value={nome} onChange={e => setNome(e.target.value)} required /></div>
+            <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Celular / Telefone</label><input type="text" value={telefone} onChange={e => setTelefone(formatarTelefone(e.target.value))} required maxLength={15} /></div>
+            <div><label style={{fontWeight:'bold', fontSize:'12px'}}>CPF</label><input type="text" value={cpf} onChange={e => setCpf(formatarCPF(e.target.value))} maxLength={14} /></div>
+            <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Data de Nascimento</label><input type="date" value={dataNascimento} onChange={e => setDataNascimento(e.target.value)} /></div>
+
+            <h4 style={{ gridColumn: 'span 2', borderBottom: '1px solid #eee', margin: 0, marginTop: '10px' }}>Endereço</h4>
+            <div style={{ gridColumn: 'span 2' }}><label style={{fontWeight:'bold', fontSize:'12px'}}>Logradouro (Rua/Av)</label><input type="text" value={logradouro} onChange={e => setLogradouro(e.target.value)} /></div>
+            <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Número</label><input type="text" value={numero} onChange={e => setNumero(e.target.value)} /></div>
+            <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Complemento</label><input type="text" value={complemento} onChange={e => setComplemento(e.target.value)} /></div>
+            <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Bairro</label><input type="text" value={bairro} onChange={e => setBairro(e.target.value)} /></div>
+            <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Cidade</label><input type="text" value={cidade} onChange={e => setCidade(e.target.value)} /></div>
+
+            <h4 style={{ gridColumn: 'span 2', borderBottom: '1px solid #eee', margin: 0, marginTop: '10px' }}>Dados Oftalmológicos</h4>
+            <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Médico Responsável</label><input type="text" value={medico} onChange={e => setMedico(e.target.value)} /></div>
+            <div><label style={{fontWeight:'bold', fontSize:'12px'}}>Data da Última Consulta</label><input type="date" value={ultimaConsulta} onChange={e => setUltimaConsulta(e.target.value)} /></div>
+            
+            <div style={{ gridColumn: 'span 2', padding: '15px', background: '#f8f9fa', borderRadius: '5px' }}>
+              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '10px', fontSize: '12px' }}>Receitas e Graus</label>
+              {receitas.map((rec, index) => (
+                <div key={index} style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                  <div style={{ flex: 1 }}><input type="text" placeholder="Doença (Ex: Miopia)" value={rec.tipo} onChange={e => atualizarReceita(index, 'tipo', e.target.value)} /></div>
+                  <div style={{ width: '120px' }}><input type="text" placeholder="OD" value={rec.od} onChange={e => atualizarReceita(index, 'od', formatarGrau(e.target.value))} title="Apenas números, vírgula, + ou -" /></div>
+                  <div style={{ width: '120px' }}><input type="text" placeholder="OE" value={rec.oe} onChange={e => atualizarReceita(index, 'oe', formatarGrau(e.target.value))} title="Apenas números, vírgula, + ou -" /></div>
+                </div>
+              ))}
+              <button type="button" onClick={adicionarLinhaReceita} style={{ background: '#17a2b8', color: 'white', padding: '5px 10px', fontSize: '12px' }}>+ Adicionar Grau Extra</button>
+            </div>
+            
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={{fontWeight:'bold', fontSize:'12px'}}>Observações Gerais</label>
+              <textarea value={observacoes} onChange={e => setObservacoes(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '5px', minHeight: '60px', border: '1px solid #ccc' }} />
+            </div>
+
+            <button type="submit" style={{ gridColumn: 'span 2', padding: '12px', marginTop: '10px', background: '#007bff' }}>💾 Salvar Ficha Completa</button>
+          </form>
+        </div>
+      )}
+
       <table style={{ marginTop: '20px' }}>
-        <thead><tr><th>Cód</th><th>Nome</th><th>Telefone</th><th>Ação</th></tr></thead>
+        <thead><tr style={{background: '#334155', color: 'white'}}><th>Cód</th><th>Nome</th><th>Telefone</th><th>Ação</th></tr></thead>
         <tbody>
           {clientes.map(c => (
              <tr key={c.id}>
                 <td>{formatarCodigo(c.codigo)}</td><td>{c.nome}</td><td>{c.telefone}</td>
-                <td><button onClick={() => { setClienteAtual(c); setModoEdicao(false); setModalAberto(true); }}>Ver / Editar Ficha</button></td>
+                <td><button onClick={() => { setClienteAtual(c); setModoEdicao(false); setModalAberto(true); }} style={{background: '#17a2b8', fontSize: '12px', padding: '5px 10px', color: 'white' }}>Ver / Editar</button></td>
              </tr>
           ))}
         </tbody>
       </table>
 
-      {/* MODAL COM MODO DE EDIÇÃO */}
+      {/* MODAL COM MODO DE EDIÇÃO (Mantido igual) */}
       {modalAberto && clienteAtual && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div className="card-formulario" style={{ width: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
-            
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
               <h2 style={{ margin: 0 }}>Ficha: {clienteAtual.nome}</h2>
-              <button onClick={() => setModoEdicao(!modoEdicao)} style={{ background: modoEdicao ? '#6c757d' : '#ffc107', color: 'black' }}>
+              <button onClick={() => setModoEdicao(!modoEdicao)} style={{ background: modoEdicao ? '#6c757d' : '#ffc107', color: 'white' }}>
                 {modoEdicao ? 'Cancelar Edição' : '✏️ Editar Ficha'}
               </button>
             </div>
-
             {modoEdicao ? (
               <div style={{ display: 'grid', gap: '10px', gridTemplateColumns: '1fr 1fr' }}>
                 <div><label>Nome</label><input value={clienteAtual.nome} onChange={e => setClienteAtual({...clienteAtual, nome: e.target.value})} /></div>
                 <div><label>Telefone</label><input value={clienteAtual.telefone} onChange={e => setClienteAtual({...clienteAtual, telefone: formatarTelefone(e.target.value)})} /></div>
                 <div><label>CPF</label><input value={clienteAtual.cpf} onChange={e => setClienteAtual({...clienteAtual, cpf: formatarCPF(e.target.value)})} /></div>
                 <div><label>Logradouro</label><input value={clienteAtual.endereco?.logradouro || ''} onChange={e => setClienteAtual({...clienteAtual, endereco: {...clienteAtual.endereco, logradouro: e.target.value}})} /></div>
-                
-                <button onClick={salvarEdicao} style={{ gridColumn: 'span 2', background: '#28a745' }}>💾 Confirmar Alterações</button>
+                <button onClick={salvarEdicao} style={{ gridColumn: 'span 2', background: '#28a745', color: 'white' }}>💾 Confirmar Alterações</button>
               </div>
             ) : (
               <>
@@ -157,7 +171,6 @@ export default function Clientes() {
                 <hr/>
                 <h3>Dados Oftalmológicos</h3>
                 <p><strong>Médico:</strong> {clienteAtual.dadosClinicos?.medico} | <strong>Última Consulta:</strong> {clienteAtual.dadosClinicos?.ultimaConsulta?.split('-').reverse().join('/')}</p>
-                
                 <table style={{ width: '100%', marginBottom: '15px' }}>
                    <thead><tr style={{background: '#eee'}}><th>Doença/Tipo</th><th>OD</th><th>OE</th></tr></thead>
                    <tbody>

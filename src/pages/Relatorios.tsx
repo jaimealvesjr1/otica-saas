@@ -1,146 +1,172 @@
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-
-interface Venda {
-  id: string;
-  numeroTalao: number;
-  dataVenda: string;
-  clienteNome: string;
-  valorTotal: number;
-  vendedor: string;
-}
+import { collection, getDocs } from 'firebase/firestore';
+import { formatarCodigo } from '../utils/geradores';
 
 export default function Relatorios() {
-  const [vendasTotais, setVendasTotais] = useState<Venda[]>([]);
-  const [vendedores, setVendedores] = useState<string[]>([]);
+  const [vendas, setVendas] = useState<any[]>([]);
   
   // Filtros
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
-  const [vendedorSelecionado, setVendedorSelecionado] = useState('');
-  const [comissaoPct, setComissaoPct] = useState('5'); // Padrão de 5%
+  const [filtroCliente, setFiltroCliente] = useState('');
+  const [filtroVendedor, setFiltroVendedor] = useState('');
+  const [filtroProduto, setFiltroProduto] = useState('');
+  const [filtroStatus, setFiltroStatus] = useState(''); // 'Aberto', 'Quitado' ou '' (Todos)
+  
+  // Comissão
+  const [porcentagemComissao, setPorcentagemComissao] = useState<number>(0);
 
   const carregarVendas = async () => {
-    try {
-      const q = query(collection(db, 'vendas'), orderBy('dataVenda', 'desc'));
-      const snap = await getDocs(q);
-      
-      const lista: Venda[] = [];
-      const listaVendedores = new Set<string>(); // O 'Set' garante que não teremos nomes repetidos
-
-      snap.forEach((doc) => {
-        const dados = doc.data() as Venda;
-        lista.push({ ...dados, id: doc.id });
-        if (dados.vendedor) listaVendedores.add(dados.vendedor);
-      });
-
-      setVendasTotais(lista);
-      setVendedores(Array.from(listaVendedores)); // Transforma o Set de volta em uma lista
-    } catch (error) {
-      console.error("Erro ao carregar relatórios: ", error);
-    }
+    const snap = await getDocs(collection(db, 'vendas'));
+    setVendas(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a: any, b: any) => b.numeroTalao - a.numeroTalao));
   };
 
-  useEffect(() => {
-    carregarVendas();
-  }, []);
+  useEffect(() => { carregarVendas(); }, []);
 
-  // O Segredo: Filtramos a lista de vendas original com base no que o usuário digitou
-  const vendasFiltradas = vendasTotais.filter(venda => {
-    const atendeDataInicio = dataInicio ? venda.dataVenda >= dataInicio : true;
-    const atendeDataFim = dataFim ? venda.dataVenda <= dataFim : true;
-    const atendeVendedor = vendedorSelecionado ? venda.vendedor === vendedorSelecionado : true;
+  // Motor de Filtros (A Mágica acontece aqui)
+  const vendasFiltradas = vendas.filter(v => {
+    // 1. Filtro por Data
+    if (dataInicio && v.dataVenda < dataInicio) return false;
+    if (dataFim && v.dataVenda > dataFim) return false;
     
-    return atendeDataInicio && atendeDataFim && atendeVendedor;
+    // 2. Filtro por Cliente
+    if (filtroCliente && !v.clienteNome?.toLowerCase().includes(filtroCliente.toLowerCase())) return false;
+    
+    // 3. Filtro por Vendedor
+    if (filtroVendedor && v.vendedor !== filtroVendedor) return false;
+    
+    // 4. Filtro por Status de Pagamento
+    if (filtroStatus === 'Aberto') {
+      if (v.formaPagamento !== 'Carnê') return false;
+      if (v.carne?.quitado) return false;
+    }
+    if (filtroStatus === 'Quitado') {
+      // Se for a vista/cartão é quitado, se for carnê, checa se a flag quitado é true
+      if (v.formaPagamento === 'Carnê' && !v.carne?.quitado) return false;
+    }
+
+    // 5. Filtro por Produto (Procura dentro do carrinho de compras da venda)
+    if (filtroProduto) {
+      const temProduto = v.itens?.some((item: any) => item.nome.toLowerCase().includes(filtroProduto.toLowerCase()));
+      // Fallback para vendas antigas que não tinham carrinho
+      const nomeLegado = v.produtoNome?.toLowerCase().includes(filtroProduto.toLowerCase());
+      if (!temProduto && !nomeLegado) return false;
+    }
+
+    return true;
   });
 
-  // Calculamos a soma total usando o 'reduce'
-  const totalVendido = vendasFiltradas.reduce((soma, venda) => soma + venda.valorTotal, 0);
-  const totalComissao = totalVendido * (parseFloat(comissaoPct) / 100);
+  // Cálculos Finais
+  const totalVendido = vendasFiltradas.reduce((acc, v) => acc + v.valorTotal, 0);
+  const totalComissao = filtroVendedor ? (totalVendido * porcentagemComissao) / 100 : 0;
+
+  // Lista de vendedores únicos para o Select
+  const vendedoresUnicos = Array.from(new Set(vendas.map(v => v.vendedor).filter(v => v)));
 
   return (
-    <div className="card-formulario">
+    <div>
+      {/* Esconde os filtros na hora da impressão para o papel sair limpo */}
+      <style>{`@media print { .no-print { display: none !important; } .print-only { display: block !important; } body { background: white; } }`}</style>
 
-      <h2 className="no-print">📊 Relatórios e Comissões</h2>
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2 style={{ margin: 0 }}>📊 Relatórios Gerenciais & Comissões</h2>
+        <button onClick={() => window.print()} style={{ background: '#17a2b8', color: 'white' }}>🖨️ Imprimir Relatório</button>
+      </div>
 
-      {/* Área de Filtros (Não aparece na impressão) */}
-      <div className="no-print" style={{ border: '1px solid #ccc', padding: '15px', marginBottom: '20px', borderRadius: '5px', display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        
-        <div>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Data Início</label>
-          <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} style={{ padding: '8px' }} />
+      {/* PAINEL DE FILTROS */}
+      <div className="card-formulario no-print" style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+          
+          <div><label style={{ fontSize: '12px', fontWeight: 'bold' }}>Data Inicial</label><input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} /></div>
+          <div><label style={{ fontSize: '12px', fontWeight: 'bold' }}>Data Final</label><input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} /></div>
+          <div><label style={{ fontSize: '12px', fontWeight: 'bold' }}>Nome do Cliente</label><input type="text" placeholder="Buscar cliente..." value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)} /></div>
+          <div><label style={{ fontSize: '12px', fontWeight: 'bold' }}>Nome do Produto/Lente</label><input type="text" placeholder="Buscar produto..." value={filtroProduto} onChange={e => setFiltroProduto(e.target.value)} /></div>
+          
+          <div>
+            <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Status Financeiro</label>
+            <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
+              <option value="">Todos (Abertos e Quitados)</option>
+              <option value="Aberto">Apenas Carnês em Aberto (Devedores)</option>
+              <option value="Quitado">Apenas Vendas Quitadas</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Filtrar por Vendedor (Comissão)</label>
+            <select value={filtroVendedor} onChange={e => setFiltroVendedor(e.target.value)}>
+              <option value="">Todos os Vendedores</option>
+              {vendedoresUnicos.map((vend: any) => <option key={vend} value={vend}>{vend}</option>)}
+            </select>
+          </div>
+
+          {/* SÓ MOSTRA O CAMPO DE COMISSÃO SE UM VENDEDOR ESPECÍFICO FOR SELECIONADO */}
+          {filtroVendedor && (
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#28a745' }}>% de Comissão do Vendedor</label>
+              <input type="number" min="0" placeholder="Ex: 5" value={porcentagemComissao} onChange={e => setPorcentagemComissao(Number(e.target.value))} style={{ border: '2px solid #28a745' }} />
+            </div>
+          )}
+          
         </div>
-        
-        <div>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Data Fim</label>
-          <input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} style={{ padding: '8px' }} />
-        </div>
-
-        <div>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Vendedor</label>
-          <select value={vendedorSelecionado} onChange={e => setVendedorSelecionado(e.target.value)} style={{ padding: '8px', minWidth: '150px' }}>
-            <option value="">Todos os Vendedores</option>
-            {vendedores.map(v => <option key={v} value={v}>{v}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Comissão (%)</label>
-          <input type="number" value={comissaoPct} onChange={e => setComissaoPct(e.target.value)} style={{ padding: '8px', width: '80px' }} />
-        </div>
-
-        <button onClick={() => window.print()} style={{ padding: '10px 15px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
-          🖨️ Imprimir Relatório
+        <button onClick={() => { setDataInicio(''); setDataFim(''); setFiltroCliente(''); setFiltroProduto(''); setFiltroStatus(''); setFiltroVendedor(''); setPorcentagemComissao(0); }} style={{ background: '#6c757d', width: '200px', alignSelf: 'flex-end', color: 'white' }}>
+          Limpar Filtros
         </button>
       </div>
 
-      {/* ÁREA DE IMPRESSÃO: Cabeçalho do Relatório */}
-      <div style={{ marginBottom: '20px' }}>
-        <h3>Relatório de Vendas e Comissões</h3>
+      {/* CABEÇALHO PARA IMPRESSÃO (Só aparece quando imprime) */}
+      <div className="print-only" style={{ display: 'none', textAlign: 'center', marginBottom: '20px', borderBottom: '2px solid black', paddingBottom: '10px' }}>
+        <h2>Relatório de Vendas - Ótica Milenium</h2>
         <p><strong>Período:</strong> {dataInicio ? dataInicio.split('-').reverse().join('/') : 'Início'} até {dataFim ? dataFim.split('-').reverse().join('/') : 'Hoje'}</p>
-        <p><strong>Vendedor:</strong> {vendedorSelecionado || 'Todos'}</p>
+        <p><strong>Filtros aplicados:</strong> {filtroCliente && `Cliente: ${filtroCliente} |`} {filtroProduto && `Produto: ${filtroProduto} |`} {filtroStatus && `Status: ${filtroStatus} |`} {filtroVendedor && `Vendedor: ${filtroVendedor}`}</p>
       </div>
 
-      <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', marginBottom: '20px' }}>
+      {/* RESUMO FINANCEIRO (Soma tudo o que foi filtrado) */}
+      <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+        <div style={{ flex: 1, padding: '20px', background: '#e2e8f0', borderRadius: '8px', borderLeft: '5px solid #3b82f6' }}>
+          <p style={{ margin: 0, fontWeight: 'bold', color: '#475569' }}>Total em Vendas (Filtro Atual)</p>
+          <h2 style={{ margin: '5px 0 0 0', color: '#0f172a' }}>{totalVendido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</h2>
+        </div>
+        
+        {/* CAIXA DE COMISSÃO (Só aparece se houver filtro por vendedor) */}
+        {filtroVendedor && (
+          <div style={{ flex: 1, padding: '20px', background: '#dcfce7', borderRadius: '8px', borderLeft: '5px solid #22c55e' }}>
+            <p style={{ margin: 0, fontWeight: 'bold', color: '#166534' }}>Comissão a Pagar ({porcentagemComissao}%)</p>
+            <h2 style={{ margin: '5px 0 0 0', color: '#14532d' }}>{totalComissao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</h2>
+          </div>
+        )}
+      </div>
+
+      {/* TABELA DE DADOS FILTRADOS */}
+      <table style={{ width: '100%', fontSize: '14px' }}>
         <thead>
-          <tr style={{ backgroundColor: '#f2f2f2' }}>
-            <th style={{ padding: '8px', border: '1px solid #ddd' }}>Data</th>
-            <th style={{ padding: '8px', border: '1px solid #ddd' }}>Talão</th>
-            <th style={{ padding: '8px', border: '1px solid #ddd' }}>Cliente</th>
-            <th style={{ padding: '8px', border: '1px solid #ddd' }}>Vendedor</th>
-            <th style={{ padding: '8px', border: '1px solid #ddd' }}>Valor da Venda</th>
+          <tr style={{ background: '#334155', color: 'white' }}>
+            <th>Talão / Data</th><th>Cliente</th><th>Vendedor</th><th>Pagamento / Status</th><th>Valor Total</th>
           </tr>
         </thead>
         <tbody>
           {vendasFiltradas.length === 0 ? (
-            <tr><td colSpan={5} style={{ padding: '8px', textAlign: 'center' }}>Nenhuma venda encontrada para este filtro.</td></tr>
+            <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>Nenhuma venda encontrada com estes filtros.</td></tr>
           ) : (
-            vendasFiltradas.map((venda) => (
-              <tr key={venda.id}>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>{venda.dataVenda.split('-').reverse().join('/')}</td>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>{venda.numeroTalao}</td>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>{venda.clienteNome}</td>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>{venda.vendedor}</td>
-                <td style={{ padding: '8px', border: '1px solid #ddd' }}>{venda.valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+            vendasFiltradas.map(v => (
+              <tr key={v.id}>
+                <td><strong>{formatarCodigo(v.numeroTalao)}</strong><br/><span style={{ fontSize: '12px', color: '#666' }}>{v.dataVenda.split('-').reverse().join('/')}</span></td>
+                <td>{v.clienteNome}</td>
+                <td>{v.vendedor || 'Não informado'}</td>
+                <td>
+                  {v.formaPagamento}
+                  {v.formaPagamento === 'Carnê' && (
+                    <span style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: v.carne?.quitado ? 'green' : 'red' }}>
+                      ({v.carne?.quitado ? 'Quitado' : `Devedor: ${v.carne?.restante.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`})
+                    </span>
+                  )}
+                </td>
+                <td style={{ fontWeight: 'bold' }}>{v.valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
               </tr>
             ))
           )}
         </tbody>
       </table>
-
-      {/* Resumo Financeiro */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '20px', fontSize: '18px' }}>
-        <div style={{ padding: '15px', backgroundColor: '#e9ecef', borderRadius: '5px' }}>
-          <strong>Total Vendido: </strong> 
-          <span style={{ color: '#28a745' }}>{totalVendido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-        </div>
-        <div style={{ padding: '15px', backgroundColor: '#d4edda', borderRadius: '5px' }}>
-          <strong>Comissão ({comissaoPct}%): </strong> 
-          <span style={{ color: '#155724' }}>{totalComissao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-        </div>
-      </div>
-
     </div>
   );
 }

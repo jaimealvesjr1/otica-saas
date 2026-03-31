@@ -150,7 +150,7 @@ export default function Vendas() {
 
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ margin: 0 }}>💰 Operação de Vendas (PDV)</h2>
-        {!mostrarForm && <button onClick={() => setMostrarForm(true)} style={{ background: '#28a745' }}>+ Nova Venda</button>}
+        {!mostrarForm && <button onClick={() => setMostrarForm(true)} style={{ background: '#28a745', color: 'white' }}>+ Nova Venda</button>}
       </div>
 
       {/* --- MÁQUINA DE ESTADOS DO FORMULÁRIO (WIZARD) --- */}
@@ -260,7 +260,7 @@ export default function Vendas() {
                 <td>{formatarCodigo(v.numeroTalao)}</td><td>{v.dataVenda.split('-').reverse().join('/')}</td>
                 <td>{v.clienteNome}</td><td>{v.formaPagamento}</td>
                 <td style={{ fontWeight: 'bold' }}>{v.valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                <td><button onClick={() => { setVendaAtual(v); setModalAberto(true); }} style={{ background: '#17a2b8', padding: '5px 10px', fontSize: '12px' }}>Ver Detalhes</button></td>
+                <td><button onClick={() => { setVendaAtual(v); setModalAberto(true); }} style={{ background: '#17a2b8', padding: '5px 10px', fontSize: '12px', color: 'white'}}>Ver Detalhes</button></td>
               </tr>
             ))}
           </tbody>
@@ -320,7 +320,7 @@ export default function Vendas() {
             </div>
 
             <div className="no-print" style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => window.print()} style={{ background: '#17a2b8', flex: 1 }}>🖨️ Imprimir Recibo</button>
+              <button onClick={() => window.print()} style={{ background: '#17a2b8', flex: 1, color: 'white' }}>🖨️ Imprimir Recibo</button>
               <button onClick={() => setModalAberto(false)} style={{ background: 'red', color: 'white', flex: 1 }}>Fechar</button>
             </div>
           </div>

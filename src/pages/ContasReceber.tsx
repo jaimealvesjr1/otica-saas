@@ -73,12 +73,25 @@ export default function ContasReceber() {
 
   return (
     <div>
-      <h2>💸 Gestão de Carnês (A Receber)</h2>
+      <style>{`@media print { .no-print { display: none !important; } .print-only { display: block !important; } body { background: white; } }`}</style>
       
-      <table style={{ width: '100%', marginTop: '20px' }}>
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2 style={{ margin: 0 }}>💸 Gestão de Carnês (A Receber)</h2>
+        <button onClick={() => window.print()} style={{ background: '#17a2b8', color: 'white' }}>🖨️ Gerar Relatório</button>
+      </div>
+
+      <div className="print-only" style={{ display: 'none', textAlign: 'center', marginBottom: '20px' }}>
+        <h2>Relatório de Contas a Receber - Ótica Milenium</h2><hr/>
+      </div>
+      
+      <table style={{ width: '100%', marginTop: '20px', borderCollapse: 'collapse', fontSize: '14px' }}>
         <thead>
           <tr style={{ background: '#fff3cd' }}>
-            <th>Talão</th><th>Cliente</th><th>Valor Total</th><th>Saldo Devedor</th><th>Ação</th>
+            <th style={{ padding: '10px', textAlign: 'left' }}>Talão</th>
+            <th style={{ padding: '10px', textAlign: 'left' }}>Cliente</th>
+            <th style={{ padding: '10px', textAlign: 'left' }}>Valor Total</th>
+            <th style={{ padding: '10px', textAlign: 'left' }}>Saldo Devedor</th>
+            <th className="no-print" style={{ padding: '10px', textAlign: 'left' }}>Ação</th>
           </tr>
         </thead>
         <tbody>
@@ -87,14 +100,14 @@ export default function ContasReceber() {
           ) : (
             contas.map((c) => (
               <tr key={c.id}>
-                <td>{formatarCodigo(c.numeroTalao)}</td>
-                <td>{c.clienteNome}</td>
-                <td>{c.valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                <td style={{ color: 'red', fontWeight: 'bold' }}>
+                <td style={{ padding: '10px', borderBottom: '1px solid #eee' }}>{formatarCodigo(c.numeroTalao)}</td>
+                <td style={{ padding: '10px', borderBottom: '1px solid #eee' }}>{c.clienteNome}</td>
+                <td style={{ padding: '10px', borderBottom: '1px solid #eee' }}>{c.valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                <td style={{ padding: '10px', borderBottom: '1px solid #eee', color: 'red', fontWeight: 'bold' }}>
                   {c.carne.restante.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </td>
-                <td>
-                  <button onClick={() => abrirModalPagamento(c)} style={{ background: '#28a745' }}>Baixar Pagamento</button>
+                <td className="no-print" style={{ padding: '10px', borderBottom: '1px solid #eee' }}>
+                  <button onClick={() => abrirModalPagamento(c)} style={{ background: '#28a745', padding: '5px 10px', fontSize: '12px', color: 'white' }}>Baixar Pagamento</button>
                 </td>
               </tr>
             ))
@@ -103,7 +116,7 @@ export default function ContasReceber() {
       </table>
 
       {modalAberto && contaAtual && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="card-formulario" style={{ width: '400px' }}>
             <h3>Lançar Pagamento</h3>
             <p><strong>Cliente:</strong> {contaAtual.clienteNome}</p>
@@ -122,7 +135,7 @@ export default function ContasReceber() {
               </div>
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                 <button type="submit" style={{ flex: 1, background: '#28a745' }}>Confirmar Baixa</button>
-                <button type="button" onClick={() => setModalAberto(false)} style={{ background: '#dc3545' }}>Cancelar</button>
+                <button type="button" onClick={() => setModalAberto(false)} style={{ background: '#dc3545', color: 'white' }}>Cancelar</button>
               </div>
             </form>
           </div>
