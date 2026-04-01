@@ -122,9 +122,15 @@ export default function Estoque() {
             {modoEdicao ? (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div style={{ gridColumn: 'span 2' }}><label>Nome do Produto</label><input value={produtoAtual.nome} onChange={e => setProdutoAtual({...produtoAtual, nome: e.target.value})} /></div>
+                <div><label>Referência / Código</label><input value={produtoAtual.referencia} onChange={e => setProdutoAtual({...produtoAtual, referencia: e.target.value})} /></div>
+                <div><label>Data de Entrada</label><input type="date" value={produtoAtual.dataEntrada} onChange={e => setProdutoAtual({...produtoAtual, dataEntrada: e.target.value})} /></div>
                 <div><label>Quantidade</label><input type="number" value={produtoAtual.quantidade} onChange={e => setProdutoAtual({...produtoAtual, quantidade: e.target.value})} /></div>
                 <div><label>Valor (R$)</label><input value={produtoAtual.valorUnitario} onChange={e => setProdutoAtual({...produtoAtual, valorUnitario: e.target.value})} /></div>
-                <div style={{ gridColumn: 'span 2' }}><label>Fornecedor</label><input value={produtoAtual.fornecedor} onChange={e => setProdutoAtual({...produtoAtual, fornecedor: e.target.value})} /></div>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label>Fornecedor</label>
+                  <input type="text" list="lista-fornecedores-edit" value={produtoAtual.fornecedor} onChange={e => setProdutoAtual({...produtoAtual, fornecedor: e.target.value})} />
+                  <datalist id="lista-fornecedores-edit">{fornecedores.map(f => <option key={f.id} value={f.nome} />)}</datalist>
+                </div>
                 <button onClick={salvarEdicao} style={{ gridColumn: 'span 2', background: '#28a745', marginTop: '10px', color: 'white' }}>💾 Confirmar Alterações</button>
               </div>
             ) : (

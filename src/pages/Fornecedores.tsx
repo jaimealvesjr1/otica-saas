@@ -112,9 +112,20 @@ export default function Fornecedores() {
                 <div><label>CNPJ</label><input value={fornAtual.cnpj} onChange={e => setFornAtual({...fornAtual, cnpj: formatarCNPJ(e.target.value)})} /></div>
                 <div><label>Telefone</label><input value={fornAtual.telefone} onChange={e => setFornAtual({...fornAtual, telefone: formatarTelefone(e.target.value)})} /></div>
                 <div style={{ gridColumn: 'span 2' }}><label>E-mail</label><input value={fornAtual.email || ''} onChange={e => setFornAtual({...fornAtual, email: e.target.value})} /></div>
+                
+                <h4 style={{ gridColumn: 'span 2', margin: '10px 0 0 0', borderBottom: '1px solid #eee' }}>Endereço</h4>
                 <div style={{ gridColumn: 'span 2' }}><label>Logradouro/Rua</label><input value={fornAtual.endereco?.rua || ''} onChange={e => setFornAtual({...fornAtual, endereco: {...fornAtual.endereco, rua: e.target.value}})} /></div>
+                <div><label>Número</label><input value={fornAtual.endereco?.numero || ''} onChange={e => setFornAtual({...fornAtual, endereco: {...fornAtual.endereco, numero: e.target.value}})} /></div>
+                <div><label>Complemento</label><input value={fornAtual.endereco?.complemento || ''} onChange={e => setFornAtual({...fornAtual, endereco: {...fornAtual.endereco, complemento: e.target.value}})} /></div>
+                <div><label>Bairro</label><input value={fornAtual.endereco?.bairro || ''} onChange={e => setFornAtual({...fornAtual, endereco: {...fornAtual.endereco, bairro: e.target.value}})} /></div>
                 <div><label>Cidade</label><input value={fornAtual.endereco?.cidade || ''} onChange={e => setFornAtual({...fornAtual, endereco: {...fornAtual.endereco, cidade: e.target.value}})} /></div>
-                <div><label>UF</label><input value={fornAtual.endereco?.uf || ''} onChange={e => setFornAtual({...fornAtual, endereco: {...fornAtual.endereco, uf: e.target.value}})} /></div>
+                <div>
+                  <label>UF</label>
+                  <select value={fornAtual.endereco?.uf || ''} onChange={e => setFornAtual({...fornAtual, endereco: {...fornAtual.endereco, uf: e.target.value}})}>
+                    <option value="">Selecione...</option>
+                    {['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(estado => <option key={estado} value={estado}>{estado}</option>)}
+                  </select>
+                </div>
                 <button onClick={salvarEdicao} style={{ gridColumn: 'span 2', background: '#28a745', marginTop: '10px', color: 'white' }}>💾 Confirmar Alterações</button>
               </div>
             ) : (

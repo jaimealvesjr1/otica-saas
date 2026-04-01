@@ -89,7 +89,7 @@ export default function Dashboard() {
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <li><Link to="/" style={{ display: 'block', padding: '12px 15px', textDecoration: 'none', borderRadius: '6px', backgroundColor: linkAtivo('/'), color: corTextoLink('/') }}>🏠 Início</Link></li>
             <li><Link to="/clientes" style={{ display: 'block', padding: '12px 15px', textDecoration: 'none', borderRadius: '6px', backgroundColor: linkAtivo('/clientes'), color: corTextoLink('/clientes') }}>👥 Clientes</Link></li>
-            <li><Link to="/vendas" style={{ display: 'block', padding: '12px 15px', textDecoration: 'none', borderRadius: '6px', backgroundColor: linkAtivo('/vendas'), color: corTextoLink('/vendas') }}>💰 PDV (Vendas)</Link></li>
+            <li><Link to="/vendas" style={{ display: 'block', padding: '12px 15px', textDecoration: 'none', borderRadius: '6px', backgroundColor: linkAtivo('/vendas'), color: corTextoLink('/vendas') }}>💰 Vendas</Link></li>
             <li><Link to="/estoque" style={{ display: 'block', padding: '12px 15px', textDecoration: 'none', borderRadius: '6px', backgroundColor: linkAtivo('/estoque'), color: corTextoLink('/estoque') }}>📦 Estoque</Link></li>
             <li><Link to="/fornecedores" style={{ display: 'block', padding: '12px 15px', textDecoration: 'none', borderRadius: '6px', backgroundColor: linkAtivo('/fornecedores'), color: corTextoLink('/fornecedores') }}>🤝 Fornecedores</Link></li>
             {user?.cargo === 'admin' && (
