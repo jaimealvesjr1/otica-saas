@@ -1,3 +1,4 @@
+// src/pages/Vendas.tsx
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
@@ -18,6 +19,9 @@ export default function Vendas() {
   const [clientes, setClientes] = useState<any[]>([]);
   const [produtos, setProdutos] = useState<any[]>([]);
   const [vendas, setVendas] = useState<any[]>([]);
+  
+  // ESTADO NOVO: Guardará o valor do produto que o vendedor digitou
+  const [valorUnitarioManual, setValorUnitarioManual] = useState('');
 
   // Controle de Telas
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -25,7 +29,7 @@ export default function Vendas() {
   const [modalAberto, setModalAberto] = useState(false);
   const [vendaAtual, setVendaAtual] = useState<any>(null);
 
-  // NOVO: Número do Talão Manual
+  // Número do Talão Manual
   const [numeroTalao, setNumeroTalao] = useState('');
 
   // Etapa 1: Cliente
@@ -57,6 +61,16 @@ export default function Vendas() {
 
   useEffect(() => { carregarDados(); }, []);
 
+  // LÓGICA NOVA: Quando selecionar um produto, puxa o valor dele para a caixinha "Preço Unit."
+  useEffect(() => {
+    const prod = produtos.find(p => p.nome === produtoBusca);
+    if (prod) {
+      setValorUnitarioManual(prod.valorUnitario.toString());
+    } else {
+      setValorUnitarioManual('');
+    }
+  }, [produtoBusca, produtos]);
+
   // --- INICIAR NOVA VENDA (Pega o número sugerido) ---
   const iniciarNovaVenda = async () => {
     const proximo = await obterProximoCodigo('vendas');
@@ -75,14 +89,25 @@ export default function Vendas() {
   const adicionarAoCarrinho = () => {
     const prodEncontrado = produtos.find(p => p.nome === produtoBusca);
     if (!prodEncontrado) return alert("Selecione um produto válido da lista.");
+    
+    // Pega o valor que o vendedor deixou na caixinha
+    const valorFinal = parseFloat(valorUnitarioManual.replace(',', '.'));
+    if (isNaN(valorFinal)) return alert("Preço inválido.");
+
     const qtdNum = parseInt(qtdProduto);
     if (prodEncontrado.quantidade < qtdNum) return alert(`Estoque insuficiente! Restam ${prodEncontrado.quantidade} unidades.`);
 
     setCarrinho([...carrinho, {
-      produtoId: prodEncontrado.id, nome: prodEncontrado.nome, referencia: prodEncontrado.referencia,
-      quantidade: qtdNum, valorUnitario: prodEncontrado.valorUnitario, subtotal: prodEncontrado.valorUnitario * qtdNum
+      produtoId: prodEncontrado.id, 
+      nome: prodEncontrado.nome, 
+      referencia: prodEncontrado.referencia,
+      quantidade: qtdNum, 
+      valorUnitario: valorFinal, // Joga pro carrinho o valor com desconto!
+      subtotal: valorFinal * qtdNum
     }]);
-    setProdutoBusca(''); setQtdProduto('1');
+    setProdutoBusca(''); 
+    setQtdProduto('1');
+    setValorUnitarioManual('');
   };
 
   const removerItem = (index: number) => {
@@ -160,14 +185,25 @@ export default function Vendas() {
             <div>
               <h3>Etapa 2: Adicionar Produtos <span style={{fontSize:'14px', color:'#666'}}>(Cliente: {clienteSelecionado?.nome})</span></h3>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', background: '#f8f9fa', padding: '15px', borderRadius: '5px', marginBottom: '15px' }}>
+                
+                {/* CAMPO DE SELECIONAR PRODUTO */}
                 <div style={{ flex: 2 }}>
                   <label style={{ fontWeight: 'bold', fontSize: '12px' }}>Produto / Lente</label>
                   <input type="text" list="produtos-list" value={produtoBusca} onChange={e => setProdutoBusca(e.target.value)} placeholder="Buscar produto..." />
                   <datalist id="produtos-list">{produtos.map(p => <option key={p.id} value={p.nome} />)}</datalist>
                 </div>
+
+                {/* NOVO CAMPO: VALOR EDITÁVEL */}
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontWeight: 'bold', fontSize: '12px', color: '#007bff' }}>Preço (R$)</label>
+                  <input type="text" value={valorUnitarioManual} onChange={e => setValorUnitarioManual(e.target.value)} style={{ border: '2px solid #007bff' }} />
+                </div>
+
                 <div style={{ flex: 1 }}><label style={{ fontWeight: 'bold', fontSize: '12px' }}>Qtd</label><input type="number" min="1" value={qtdProduto} onChange={e => setQtdProduto(e.target.value)} /></div>
+                
                 <button type="button" onClick={adicionarAoCarrinho} style={{ background: '#28a745', color: 'white', height: '40px' }}>+ Adicionar</button>
               </div>
+
               {carrinho.length > 0 && (
                 <table style={{ width: '100%', marginBottom: '15px' }}>
                   <thead><tr style={{ background: '#eee' }}><th>Ref</th><th>Produto</th><th>Qtd</th><th>Subtotal</th><th>X</th></tr></thead>
@@ -194,7 +230,6 @@ export default function Vendas() {
             <form onSubmit={finalizarVenda}>
               <h3>Etapa 3: Pagamento e Finalização</h3>
               
-              {/* CAMPO DE TALÃO MANUAL */}
               <div style={{ background: '#e2e8f0', padding: '15px', borderRadius: '5px', marginBottom: '15px', display: 'flex', gap: '15px', alignItems: 'center' }}>
                 <label style={{ fontWeight: 'bold', fontSize: '14px', color: '#1e293b' }}>Nº do Talão Físico:</label>
                 <input type="number" value={numeroTalao} onChange={e => setNumeroTalao(e.target.value)} required style={{ fontSize: '18px', fontWeight: 'bold', width: '150px', textAlign: 'center', border: '2px solid #007bff' }} />

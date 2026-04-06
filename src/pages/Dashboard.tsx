@@ -12,16 +12,41 @@ export default function Dashboard() {
   const location = useLocation(); 
   
   // --------------------------------------------------------
+  // ⏳ LÓGICA DO CONTADOR REGRESSIVO DE TESTE
+  // --------------------------------------------------------
+  const [tempoRestante, setTempoRestante] = useState("");
+  // Timer ajustado para encerrar em 20 de Maio de 2026:
+  const dataFimTeste = new Date('2026-04-20T23:59:59').getTime();
+
+  useEffect(() => {
+    const intervalo = setInterval(() => {
+      const agora = new Date().getTime();
+      const distancia = dataFimTeste - agora;
+
+      if (distancia < 0) {
+        setTempoRestante("Teste Encerrado");
+        clearInterval(intervalo);
+      } else {
+        const dias = Math.floor(distancia / (1000 * 60 * 60 * 24));
+        const horas = Math.floor((distancia % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutos = Math.floor((distancia % (1000 * 60 * 60)) / (1000 * 60));
+        setTempoRestante(`${dias}d ${horas}h ${minutos}m`);
+      }
+    }, 1000);
+
+    return () => clearInterval(intervalo);
+  }, []);
+
+  // --------------------------------------------------------
   // 🛡️ MOTOR DE AUTORIZAÇÕES (Controlo de Acessos)
   // --------------------------------------------------------
-  const cargo = user?.cargo?.toLowerCase() || ''; // Converte para minúsculo para evitar erros de digitação
+  const cargo = user?.cargo?.toLowerCase() || ''; 
 
   const isAdmin = cargo === 'admin';
   const isVendedor = cargo === 'vendedor';
   const isEstoquista = cargo === 'estoquista';
   const isGerente = cargo === 'gerente';
 
-  // O que cada um pode ver?
   const podeVerDashboard  = isAdmin || isGerente;
   const podeVerClientes   = isAdmin || isGerente || isVendedor;
   const podeVerVendas     = isAdmin || isGerente || isVendedor;
@@ -30,7 +55,6 @@ export default function Dashboard() {
   const podeVerFinanceiro = isAdmin || isGerente;
   const podeVerRelatorios = isAdmin || isGerente;
 
-  // Proteção contra acesso por URL direta
   const rotasPermitidas: Record<string, boolean> = {
     '/': podeVerDashboard,
     '/clientes': podeVerClientes,
@@ -41,11 +65,10 @@ export default function Dashboard() {
     '/relatorios': podeVerRelatorios,
   };
 
-  // Se o caminho não existir na lista, bloqueia por padrão (Segurança máxima)
   const temPermissao = rotasPermitidas[location.pathname] === true;
 
   // --------------------------------------------------------
-  // Indicadores (Carrega apenas se for Admin ou Gerente)
+  // Indicadores
   // --------------------------------------------------------
   const [vendasHoje, setVendasHoje] = useState(0);
   const [vendasMes, setVendasMes] = useState(0);
@@ -64,7 +87,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     const carregarIndicadores = async () => {
-      if (!podeVerDashboard) return; // Só carrega métricas se tiver permissão
+      if (!podeVerDashboard) return; 
       
       const hoje = new Date().toISOString().split('T')[0];
       const mesAtual = hoje.substring(0, 7);
@@ -115,7 +138,7 @@ export default function Dashboard() {
   return (
     <div style={{ display: 'flex', flexDirection: 'row', height: '100vh', width: '100vw', overflow: 'hidden', fontFamily: 'sans-serif' }}>
       
-      {/* MENU LATERAL - SÓ MOSTRA O QUE O CARGO PERMITE */}
+      {/* MENU LATERAL */}
       <nav className="no-print" style={{ width: '250px', flexShrink: 0, backgroundColor: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '20px', textAlign: 'center', borderBottom: '1px solid #334155', backgroundColor: 'white' }}>
           <img src="/logo.png" alt="Ótica Milenium" style={{ maxWidth: '180px', maxHeight: '60px' }} />
@@ -157,6 +180,12 @@ export default function Dashboard() {
               </>
             )}
           </ul>
+        </div>
+
+        {/* CAIXA DE CONTAGEM REGRESSIVA AQUI */}
+        <div style={{ margin: '10px', padding: '15px', background: '#334155', borderRadius: '8px', border: '1px solid #475569' }}>
+          <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>Período de Experiência</p>
+          <p style={{ margin: '5px 0 0 0', fontSize: '16px', fontWeight: 'bold', color: '#fbbf24' }}>⌛ {tempoRestante}</p>
         </div>
 
         <div style={{ padding: '15px', borderTop: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -215,11 +244,9 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
-            {/* O Outlet renderiza a tela que o usuário clicou (Clientes, Estoque, etc) */}
             <Outlet />
           </div>
         ) : (
-          // ECRÃ DE BLOQUEIO SE O UTILIZADOR NÃO TIVER PERMISSÃO
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
             <h1 style={{ fontSize: '60px', margin: 0 }}>⛔</h1>
             <h2 style={{ color: '#ef4444' }}>Acesso Negado</h2>

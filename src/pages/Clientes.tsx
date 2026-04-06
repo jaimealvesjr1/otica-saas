@@ -1,10 +1,11 @@
+// src/pages/Clientes.tsx
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, addDoc, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
 import { obterProximoCodigo, formatarCodigo } from '../utils/geradores';
 import { formatarCPF, formatarTelefone } from '../utils/mascaras';
 
-// --- NOVAS INTERFACES DE PRESCRIÇÃO OFICIAL ---
+// --- INTERFACES DE PRESCRIÇÃO OFICIAL ---
 interface Graus { esf: string; cil: string; eixo: string; dnp: string; aco: string; ap: string; }
 interface ReceitaOculos { longeOD: Graus; longeOE: Graus; pertoOD: Graus; pertoOE: Graus; }
 
@@ -15,9 +16,9 @@ const receitaVazia: ReceitaOculos = {
   pertoOE: { esf: '', cil: '', eixo: '', dnp: '', aco: '', ap: '' },
 };
 
-// 🚨 SOLUÇÃO: A TABELA AGORA FICA DO LADO DE FORA PARA NÃO PERDER O FOCO 🚨
+// TABELA NÃO PERDE O FOCO (FORA DA FUNÇÃO PRINCIPAL)
 const TabelaPrescricao = ({ receita, onChange, modoLeitura = false }: { receita: ReceitaOculos, onChange?: any, modoLeitura?: boolean }) => {
-  const colunas = ['ESFÉRICO', 'CILÍNDRICO', 'EIXO', 'DNP', 'ACO', 'AP'];
+  const colunas = ['ESFÉrico', 'CILindro', 'EIXO', 'DNP', 'ACO', 'AP'];
   const linhas = [
     { label: 'Longe OD', chave: 'longeOD' as keyof ReceitaOculos, bg: '#f8fafc' },
     { label: 'Longe OE', chave: 'longeOE' as keyof ReceitaOculos, bg: '#f8fafc' },
@@ -59,8 +60,6 @@ const TabelaPrescricao = ({ receita, onChange, modoLeitura = false }: { receita:
   );
 };
 
-
-// --- AGORA SIM COMEÇA A TELA PRINCIPAL DE CLIENTES ---
 export default function Clientes() {
   const [clientes, setClientes] = useState<any[]>([]);
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -69,17 +68,20 @@ export default function Clientes() {
   const [nome, setNome] = useState(''); const [cpf, setCpf] = useState(''); const [telefone, setTelefone] = useState(''); const [dataNascimento, setDataNascimento] = useState('');
   const [logradouro, setLogradouro] = useState(''); const [numero, setNumero] = useState(''); const [complemento, setComplemento] = useState(''); const [bairro, setBairro] = useState(''); const [cidade, setCidade] = useState('');
 
-  // Dados Clínicos Novos
+  // Dados Clínicos
   const [medico, setMedico] = useState('');
   const [ultimaConsulta, setUltimaConsulta] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [receitaOculos, setReceitaOculos] = useState<ReceitaOculos>(JSON.parse(JSON.stringify(receitaVazia)));
 
-  // Modal e Edição
+  // Modal, Edição e Histórico de Compras
   const [modalAberto, setModalAberto] = useState(false);
   const [clienteAtual, setClienteAtual] = useState<any>(null);
   const [clienteOriginal, setClienteOriginal] = useState<any>(null); 
   const [modoEdicao, setModoEdicao] = useState(false);
+  
+  // NOVO: Estado para guardar as compras do cliente selecionado
+  const [comprasCliente, setComprasCliente] = useState<any[]>([]);
 
   const buscarClientes = async () => {
     const snap = await getDocs(collection(db, 'clientes'));
@@ -87,6 +89,16 @@ export default function Clientes() {
   };
 
   useEffect(() => { buscarClientes(); }, []);
+
+  // NOVO: Função que busca as vendas apenas do cliente selecionado
+  const carregarComprasDoCliente = async (clienteId: string) => {
+    const q = query(collection(db, 'vendas'), where('clienteId', '==', clienteId));
+    const snap = await getDocs(q);
+    const compras = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // Ordena da compra mais recente para a mais antiga
+    compras.sort((a: any, b: any) => new Date(b.dataVenda).getTime() - new Date(a.dataVenda).getTime());
+    setComprasCliente(compras);
+  };
 
   const cadastrarCliente = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,7 +112,6 @@ export default function Clientes() {
     alert('Ficha cadastrada com sucesso!');
     setMostrarForm(false); buscarClientes();
     
-    // Resetar Form
     setNome(''); setCpf(''); setTelefone(''); setDataNascimento('');
     setLogradouro(''); setNumero(''); setComplemento(''); setBairro(''); setCidade('');
     setMedico(''); setUltimaConsulta(''); setObservacoes(''); setReceitaOculos(JSON.parse(JSON.stringify(receitaVazia)));
@@ -109,7 +120,6 @@ export default function Clientes() {
   const salvarEdicao = async () => {
     try {
       let dadosClinicosAtualizados = { ...clienteAtual.dadosClinicos };
-
       const clinicoOriginalStr = JSON.stringify(clienteOriginal.dadosClinicos || {});
       const clinicoAtualStr = JSON.stringify(clienteAtual.dadosClinicos || {});
 
@@ -191,7 +201,7 @@ export default function Clientes() {
               <textarea value={observacoes} onChange={e => setObservacoes(e.target.value)} style={{ width: '100%', padding: '10px', minHeight: '60px' }} />
             </div>
 
-            <button type="submit" style={{ gridColumn: 'span 2', padding: '12px', background: '#007bff' }}>💾 Salvar Ficha Completa</button>
+            <button type="submit" style={{ gridColumn: 'span 2', padding: '12px', background: '#007bff', color: 'white' }}>💾 Salvar Ficha Completa</button>
           </form>
         </div>
       )}
@@ -208,8 +218,10 @@ export default function Clientes() {
                   <button onClick={() => { 
                     setClienteAtual(c); 
                     setClienteOriginal(JSON.parse(JSON.stringify(c))); 
-                    setModoEdicao(false); setModalAberto(true); 
-                  }} style={{background: '#17a2b8', fontSize: '12px', padding: '5px 10px', color: 'white'}}>Abrir Prontuário</button>
+                    setModoEdicao(false); 
+                    setModalAberto(true); 
+                    carregarComprasDoCliente(c.id); // 🚀 NOVO: Carrega as compras quando abre o modal!
+                  }} style={{background: '#17a2b8', color: 'white', fontSize: '12px', padding: '5px 10px'}}>Abrir Prontuário</button>
                 </td>
              </tr>
           ))}
@@ -260,11 +272,12 @@ export default function Clientes() {
               </div>
             ) : (
               <>
+                {/* --- MODO LEITURA --- */}
                 <p><strong>Telefone:</strong> {clienteAtual.telefone} | <strong>CPF:</strong> {clienteAtual.cpf}</p>
                 <p><strong>Endereço:</strong> {clienteAtual.endereco?.logradouro}, {clienteAtual.endereco?.numero} - {clienteAtual.endereco?.bairro}, {clienteAtual.endereco?.cidade}</p>
                 <hr style={{ margin: '20px 0', border: '0.5px solid #e2e8f0' }}/>
                 
-                <h3 style={{ color: '#007bff' }}>Prescrição Atual</h3>
+                <h3 style={{ color: '#007bff' }}>👁️ Prescrição Atual</h3>
                 <p><strong>Médico:</strong> {clienteAtual.dadosClinicos?.medico || 'Não informado'} | <strong>Consulta:</strong> {clienteAtual.dadosClinicos?.ultimaConsulta ? clienteAtual.dadosClinicos.ultimaConsulta.split('-').reverse().join('/') : 'Não informada'}</p>
                 
                 {clienteAtual.dadosClinicos?.receitaOculos ? (
@@ -278,21 +291,66 @@ export default function Clientes() {
                 <p style={{ marginTop: '10px' }}><strong>Obs:</strong> {clienteAtual.dadosClinicos?.observacoes || 'Nenhuma observação.'}</p>
 
                 {clienteAtual.dadosClinicos?.historicoEvolucao?.length > 0 && (
-                  <div style={{ marginTop: '30px', padding: '20px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px' }}>
-                    <h3 style={{ margin: '0 0 15px 0', color: '#d97706' }}>⏳ Histórico de Receitas Anteriores</h3>
-                    
+                  <div style={{ marginTop: '20px', padding: '15px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px' }}>
+                    <h3 style={{ margin: '0 0 10px 0', color: '#d97706', fontSize: '16px' }}>⏳ Histórico de Receitas Anteriores</h3>
                     {clienteAtual.dadosClinicos.historicoEvolucao.map((hist: any, i: number) => (
-                      <div key={i} style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px dashed #d97706' }}>
-                        <p style={{ margin: '0 0 5px 0', fontSize: '12px', color: '#92400e', fontWeight: 'bold' }}>📅 Arquivado em: {new Date(hist.dataAlteracao).toLocaleDateString('pt-BR')} às {new Date(hist.dataAlteracao).toLocaleTimeString('pt-BR')}</p>
-                        <p style={{ margin: '0 0 10px 0', fontSize: '13px' }}><strong>Médico:</strong> {hist.medico || 'N/A'} | <strong>Consulta:</strong> {hist.ultimaConsulta ? hist.ultimaConsulta.split('-').reverse().join('/') : 'N/A'}</p>
-                        
+                      <div key={i} style={{ marginBottom: '15px', paddingBottom: '10px', borderBottom: '1px dashed #d97706' }}>
+                        <p style={{ margin: '0 0 5px 0', fontSize: '12px', color: '#92400e', fontWeight: 'bold' }}>📅 Arquivado em: {new Date(hist.dataAlteracao).toLocaleDateString('pt-BR')}</p>
+                        <p style={{ margin: '0 0 10px 0', fontSize: '13px' }}><strong>Médico:</strong> {hist.medico || 'N/A'}</p>
                         {hist.receitaOculos ? (
                           <div style={{ opacity: 0.8 }}><TabelaPrescricao receita={hist.receitaOculos} modoLeitura={true} /></div>
-                        ) : hist.receitas?.length > 0 ? (
-                          <p style={{ fontSize: '12px', color: 'gray' }}>[Receita no formato antigo salva. Edite a ficha atual para atualizar o histórico no novo padrão].</p>
                         ) : null}
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/* 🚀 NOVO: SESSÃO HISTÓRICO DE COMPRAS (VENDAS) 🚀 */}
+                <hr style={{ margin: '30px 0', border: '0.5px solid #e2e8f0' }}/>
+                <h3 style={{ color: '#0f172a' }}>🛍️ Histórico Comercial (Compras)</h3>
+                
+                {comprasCliente.length === 0 ? (
+                  <p style={{ fontSize: '13px', color: '#64748b', background: '#f8fafc', padding: '10px', borderRadius: '5px' }}>Nenhuma compra registrada para este cliente até o momento.</p>
+                ) : (
+                  <div style={{ maxHeight: '250px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                    <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
+                      <thead style={{ background: '#f1f5f9', position: 'sticky', top: 0 }}>
+                        <tr>
+                          <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #cbd5e1' }}>Talão / Data</th>
+                          <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #cbd5e1' }}>Produtos</th>
+                          <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #cbd5e1' }}>Pagamento</th>
+                          <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #cbd5e1' }}>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {comprasCliente.map((compra, i) => (
+                          <tr key={i} style={{ background: i % 2 === 0 ? 'white' : '#f8fafc' }}>
+                            <td style={{ padding: '8px', borderBottom: '1px solid #e2e8f0', verticalAlign: 'top' }}>
+                              <strong>{formatarCodigo(compra.numeroTalao)}</strong><br/>
+                              <span style={{ fontSize: '11px', color: '#64748b' }}>{compra.dataVenda?.split('-').reverse().join('/')}</span>
+                            </td>
+                            <td style={{ padding: '8px', borderBottom: '1px solid #e2e8f0', verticalAlign: 'top' }}>
+                              <ul style={{ margin: 0, paddingLeft: '15px', fontSize: '12px' }}>
+                                {compra.itens?.map((item: any, idx: number) => (
+                                  <li key={idx}>{item.quantidade}x {item.nome}</li>
+                                ))}
+                              </ul>
+                            </td>
+                            <td style={{ padding: '8px', borderBottom: '1px solid #e2e8f0', verticalAlign: 'top' }}>
+                              {compra.formaPagamento}
+                              {compra.formaPagamento === 'Carnê' && (
+                                 <div style={{ fontSize: '11px', fontWeight: 'bold', color: compra.carne?.quitado ? '#10b981' : '#ef4444', marginTop: '4px' }}>
+                                   {compra.carne?.quitado ? 'Quitado' : `Em Aberto (Devendo: R$ ${compra.carne?.restante})`}
+                                 </div>
+                              )}
+                            </td>
+                            <td style={{ padding: '8px', borderBottom: '1px solid #e2e8f0', verticalAlign: 'top', fontWeight: 'bold', color: '#0f172a' }}>
+                              {compra.valorTotal?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </>

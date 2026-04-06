@@ -1,3 +1,4 @@
+// src/pages/Estoque.tsx
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, doc, updateDoc } from 'firebase/firestore';
@@ -5,6 +6,7 @@ import { collection, addDoc, getDocs, doc, updateDoc } from 'firebase/firestore'
 export default function Estoque() {
   const [produtos, setProdutos] = useState<any[]>([]);
   const [fornecedores, setFornecedores] = useState<any[]>([]);
+  const [vendas, setVendas] = useState<any[]>([]); // NOVO: Estado para carregar as vendas
   const [mostrarForm, setMostrarForm] = useState(false);
   
   // Campos
@@ -23,8 +25,13 @@ export default function Estoque() {
   const carregarDados = async () => {
     const prodSnap = await getDocs(collection(db, 'estoque'));
     setProdutos(prodSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    
     const fornSnap = await getDocs(collection(db, 'fornecedores'));
     setFornecedores(fornSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+    // NOVO: Busca todas as vendas para podermos comparar os preços de saída
+    const vendSnap = await getDocs(collection(db, 'vendas'));
+    setVendas(vendSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   };
 
   useEffect(() => { carregarDados(); }, []);
@@ -102,20 +109,20 @@ export default function Estoque() {
               <td>{p.fornecedor}</td>
               <td style={{ color: p.quantidade <= 3 ? 'red' : 'black', fontWeight: p.quantidade <= 3 ? 'bold' : 'normal' }}>{p.quantidade}</td>
               <td>{p.valorUnitario?.toLocaleString('pt-BR', {style: 'currency', currency:'BRL'})}</td>
-              <td className="no-print"><button onClick={() => { setProdutoAtual(p); setModoEdicao(false); setModalAberto(true); }} style={{ background: '#ffc107', color: 'white', padding: '5px 10px', fontSize: '12px' }}>Editar</button></td>
+              <td className="no-print"><button onClick={() => { setProdutoAtual(p); setModoEdicao(false); setModalAberto(true); }} style={{ background: '#ffc107', color: 'white', padding: '5px 10px', fontSize: '12px' }}>Editar / Info</button></td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      {/* MODAL DE EDIÇÃO DE ESTOQUE */}
+      {/* MODAL DE EDIÇÃO E INFORMAÇÃO DE ESTOQUE */}
       {modalAberto && produtoAtual && (
         <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="card-formulario" style={{ width: '500px' }}>
+          <div className="card-formulario" style={{ width: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
               <h3 style={{ margin: 0 }}>Ref: {produtoAtual.referencia}</h3>
               <button onClick={() => setModoEdicao(!modoEdicao)} style={{ background: modoEdicao ? '#6c757d' : '#ffc107', color: 'white' }}>
-                {modoEdicao ? 'Cancelar Edição' : '✏️ Editar'}
+                {modoEdicao ? 'Cancelar Edição' : '✏️ Editar Produto'}
               </button>
             </div>
             
@@ -125,7 +132,7 @@ export default function Estoque() {
                 <div><label>Referência / Código</label><input value={produtoAtual.referencia} onChange={e => setProdutoAtual({...produtoAtual, referencia: e.target.value})} /></div>
                 <div><label>Data de Entrada</label><input type="date" value={produtoAtual.dataEntrada} onChange={e => setProdutoAtual({...produtoAtual, dataEntrada: e.target.value})} /></div>
                 <div><label>Quantidade</label><input type="number" value={produtoAtual.quantidade} onChange={e => setProdutoAtual({...produtoAtual, quantidade: e.target.value})} /></div>
-                <div><label>Valor (R$)</label><input value={produtoAtual.valorUnitario} onChange={e => setProdutoAtual({...produtoAtual, valorUnitario: e.target.value})} /></div>
+                <div><label>Valor de Tabela (R$)</label><input value={produtoAtual.valorUnitario} onChange={e => setProdutoAtual({...produtoAtual, valorUnitario: e.target.value})} /></div>
                 <div style={{ gridColumn: 'span 2' }}>
                   <label>Fornecedor</label>
                   <input type="text" list="lista-fornecedores-edit" value={produtoAtual.fornecedor} onChange={e => setProdutoAtual({...produtoAtual, fornecedor: e.target.value})} />
@@ -135,13 +142,53 @@ export default function Estoque() {
               </div>
             ) : (
               <div>
-                <p><strong>Produto:</strong> {produtoAtual.nome}</p>
-                <p><strong>Quantidade Atual:</strong> {produtoAtual.quantidade} unidades</p>
-                <p><strong>Valor:</strong> {produtoAtual.valorUnitario?.toLocaleString('pt-BR', {style: 'currency', currency:'BRL'})}</p>
-                <p><strong>Fornecedor:</strong> {produtoAtual.fornecedor}</p>
+                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '5px', marginBottom: '20px' }}>
+                  <p style={{ margin: '0 0 5px 0' }}><strong>Produto:</strong> {produtoAtual.nome}</p>
+                  <p style={{ margin: '0 0 5px 0' }}><strong>Quantidade Atual:</strong> {produtoAtual.quantidade} unidades</p>
+                  <p style={{ margin: '0 0 5px 0' }}><strong>Valor de Tabela:</strong> {produtoAtual.valorUnitario?.toLocaleString('pt-BR', {style: 'currency', currency:'BRL'})}</p>
+                  <p style={{ margin: '0' }}><strong>Fornecedor:</strong> {produtoAtual.fornecedor}</p>
+                </div>
+
+                {/* NOVO: TABELA DE HISTÓRICO DE SAÍDAS (COMPARAÇÃO DE PREÇOS) */}
+                <h4 style={{ margin: '0 0 10px 0', borderBottom: '2px solid #e2e8f0', paddingBottom: '5px', color: '#1e293b' }}>📈 Histórico de Saídas (Vendas)</h4>
+                <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                  <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#f1f5f9', textAlign: 'left', color: '#475569' }}>
+                        <th style={{ padding: '8px' }}>Data</th>
+                        <th style={{ padding: '8px' }}>Qtd</th>
+                        <th style={{ padding: '8px' }}>Valor Tabela</th>
+                        <th style={{ padding: '8px' }}>Valor Vendido</th>
+                        <th style={{ padding: '8px' }}>Diferença</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vendas.filter(v => v.itens?.some((i: any) => i.produtoId === produtoAtual.id)).length === 0 ? (
+                        <tr><td colSpan={5} style={{ textAlign: 'center', padding: '15px' }}>Nenhuma venda registrada para este produto.</td></tr>
+                      ) : (
+                        vendas.filter(v => v.itens?.some((i: any) => i.produtoId === produtoAtual.id)).map(v => {
+                          const itemVendido = v.itens.find((i: any) => i.produtoId === produtoAtual.id);
+                          const diff = itemVendido.valorUnitario - produtoAtual.valorUnitario;
+                          
+                          return (
+                            <tr key={v.id}>
+                              <td style={{ padding: '8px', borderBottom: '1px solid #e2e8f0' }}>{v.dataVenda.split('-').reverse().join('/')}</td>
+                              <td style={{ padding: '8px', borderBottom: '1px solid #e2e8f0' }}>{itemVendido.quantidade}x</td>
+                              <td style={{ padding: '8px', borderBottom: '1px solid #e2e8f0' }}>{produtoAtual.valorUnitario.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</td>
+                              <td style={{ padding: '8px', borderBottom: '1px solid #e2e8f0', fontWeight: 'bold' }}>{itemVendido.valorUnitario.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</td>
+                              <td style={{ padding: '8px', borderBottom: '1px solid #e2e8f0', color: diff < 0 ? '#dc3545' : (diff > 0 ? '#28a745' : '#6c757d'), fontWeight: 'bold' }}>
+                                {diff > 0 ? '+' : ''}{diff.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
-            <button onClick={() => setModalAberto(false)} style={{ background: 'red', color: 'white', width: '100%', marginTop: '15px' }}>Fechar</button>
+            <button onClick={() => setModalAberto(false)} style={{ background: 'red', color: 'white', width: '100%', marginTop: '20px' }}>Fechar Painel</button>
           </div>
         </div>
       )}
