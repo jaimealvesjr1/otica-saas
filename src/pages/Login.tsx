@@ -1,29 +1,37 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { auth } from '../firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
+  const [entrando, setEntrando] = useState(false); // 2. Novo estado para controlar o botão
   
-  const navigate = useNavigate(); // 2. Inicializamos o gancho de navegação
+  const navigate = useNavigate();
+  const { user } = useAuth(); // 3. Puxamos o estado do utilizador
+
+  // 4. O SEGREDO: O React fica a vigiar o 'user'. 
+  // Só quando o AuthContext terminar de buscar TODOS os dados (incluindo o cargo), ele navega.
+  useEffect(() => {
+    if (user) {
+      navigate('/');
+    }
+  }, [user, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErro('');
+    setEntrando(true);
 
     try {
       await signInWithEmailAndPassword(auth, email, senha);
-      
-      // 3. AGORA SIM: Assim que o Firebase confirma, nós mandamos para a raiz (/)
-      // que é onde está o nosso Dashboard
-      navigate('/'); 
-      
     } catch (error) {
       setErro('E-mail ou senha incorretos.');
       console.error(error);
+      setEntrando(false);
     }
   };
 
@@ -66,17 +74,20 @@ export default function Login() {
             required 
             style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}
           />
-          <button type="submit" style={{ 
-            padding: '12px', 
-            backgroundColor: '#007bff', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '4px', 
-            cursor: 'pointer',
-            fontSize: '16px',
-            fontWeight: 'bold'
-          }}>
-            Entrar no Sistema
+          <button 
+            type="submit" 
+            disabled={entrando}
+            style={{ 
+              padding: '12px', 
+              backgroundColor: entrando ? '#6c757d' : '#007bff', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '4px', 
+              cursor: entrando ? 'not-allowed' : 'pointer',
+              fontSize: '16px',
+              fontWeight: 'bold'
+            }}>
+            {entrando ? 'Aguarde...' : 'Entrar no Sistema'}
           </button>
         </form>
       </div>

@@ -6,6 +6,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { formatarCodigo } from '../utils/geradores';
+import { formatarCPF, formatarTelefone } from '../utils/mascaras';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -15,8 +16,7 @@ export default function Dashboard() {
   // ⏳ LÓGICA DO CONTADOR REGRESSIVO DE TESTE
   // --------------------------------------------------------
   const [tempoRestante, setTempoRestante] = useState("");
-  // Timer ajustado para encerrar em 20 de Maio de 2026:
-  const dataFimTeste = new Date('2026-04-20T23:59:59').getTime();
+  const dataFimTeste = new Date('2026-04-21T23:59:59').getTime();
 
   useEffect(() => {
     const intervalo = setInterval(() => {
@@ -47,7 +47,8 @@ export default function Dashboard() {
   const isEstoquista = cargo === 'estoquista';
   const isGerente = cargo === 'gerente';
 
-  const podeVerDashboard  = isAdmin || isGerente;
+  // 🚀 NOVO: Vendedor agora pode ver o Dashboard
+  const podeVerDashboard  = isAdmin || isGerente || isVendedor;
   const podeVerClientes   = isAdmin || isGerente || isVendedor;
   const podeVerVendas     = isAdmin || isGerente || isVendedor;
   const podeVerEstoque    = isAdmin || isGerente || isEstoquista;
@@ -76,14 +77,45 @@ export default function Dashboard() {
   const [estoqueBaixo, setEstoqueBaixo] = useState(0);
   const [ultimasVendas, setUltimasVendas] = useState<any[]>([]);
 
-  // Perfil
+  // --------------------------------------------------------
+  // LÓGICA DO PERFIL DE USUÁRIO
+  // --------------------------------------------------------
   const [modalPerfil, setModalPerfil] = useState(false);
   const [perfilNome, setPerfilNome] = useState('');
   const [perfilCpf, setPerfilCpf] = useState('');
   const [perfilNascimento, setPerfilNascimento] = useState('');
   const [perfilTelefone, setPerfilTelefone] = useState('');
-  const [perfilEndereco, setPerfilEndereco] = useState('');
   const [novaSenha, setNovaSenha] = useState('');
+
+  const abrirPerfil = () => { 
+    setPerfilNome(user?.nome || ''); 
+    setPerfilCpf(user?.cpf || '');
+    setPerfilNascimento(user?.dataNascimento || '');
+    setPerfilTelefone(user?.telefone || '');
+    setNovaSenha('');
+    setModalPerfil(true); 
+  };
+
+  const salvarPerfil = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (user?.uid) {
+        await updateDoc(doc(db, 'colaboradores', user.uid), {
+          nome: perfilNome, 
+          cpf: perfilCpf, 
+          dataNascimento: perfilNascimento, 
+          telefone: perfilTelefone
+        });
+      }
+      if (novaSenha && auth.currentUser) {
+        await updatePassword(auth.currentUser, novaSenha);
+      }
+      alert('Perfil atualizado com sucesso! (As mudanças completas refletirão no próximo login).'); 
+      setModalPerfil(false);
+    } catch (error) { 
+      alert('Erro ao atualizar perfil.'); 
+    }
+  };
 
   useEffect(() => {
     const carregarIndicadores = async () => {
@@ -98,6 +130,10 @@ export default function Dashboard() {
 
       vendasSnap.forEach(doc => {
         const v = doc.data();
+        
+        // 🚀 NOVO: Se for vendedor, ignora as vendas dos outros colegas
+        if (isVendedor && v.vendedor !== user?.nome) return;
+
         listaVendas.push({ id: doc.id, ...v });
         if (v.dataVenda === hoje) totalHoje += v.valorTotal;
         if (v.dataVenda.startsWith(mesAtual)) totalMes += v.valorTotal;
@@ -108,28 +144,18 @@ export default function Dashboard() {
       listaVendas.sort((a, b) => b.numeroTalao - a.numeroTalao);
       setUltimasVendas(listaVendas.slice(0, 5));
 
-      const estoqueSnap = await getDocs(collection(db, 'estoque'));
-      let itensBaixos = 0;
-      estoqueSnap.forEach(doc => { if (doc.data().quantidade <= 3) itensBaixos++; });
-      setEstoqueBaixo(itensBaixos);
-    };
-    carregarIndicadores();
-  }, [user, podeVerDashboard]);
-
-  const abrirPerfil = () => { setPerfilNome(user?.nome || ''); setModalPerfil(true); };
-
-  const salvarPerfil = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (user?.uid) {
-        await updateDoc(doc(db, 'colaboradores', user.uid), {
-          nome: perfilNome, cpf: perfilCpf, dataNascimento: perfilNascimento, telefone: perfilTelefone, endereco: perfilEndereco
-        });
+      // 🚀 NOVO: O Vendedor não precisa carregar dados de estoque
+      if (isAdmin || isGerente || isEstoquista) {
+        const estoqueSnap = await getDocs(collection(db, 'estoque'));
+        let itensBaixos = 0;
+        estoqueSnap.forEach(doc => { if (doc.data().quantidade <= 3) itensBaixos++; });
+        setEstoqueBaixo(itensBaixos);
       }
-      if (novaSenha && auth.currentUser) await updatePassword(auth.currentUser, novaSenha);
-      alert('Perfil atualizado!'); setModalPerfil(false);
-    } catch (error) { alert('Erro ao atualizar perfil.'); }
-  };
+    };
+    
+    // Atualiza toda vez que o user mudar para garantir que pegou o nome correto
+    if (user?.nome) carregarIndicadores();
+  }, [user, podeVerDashboard, isVendedor, isAdmin, isGerente, isEstoquista]);
 
   const handleLogout = async () => { await signOut(auth); };
   const linkAtivo = (caminho: string) => location.pathname === caminho ? '#007bff' : 'transparent';
@@ -189,7 +215,7 @@ export default function Dashboard() {
         </div>
 
         <div style={{ padding: '15px', borderTop: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div onClick={abrirPerfil} style={{ fontSize: '14px', cursor: 'pointer', flex: 1 }}>
+          <div onClick={abrirPerfil} style={{ fontSize: '14px', cursor: 'pointer', flex: 1 }} title="Clique para editar seu perfil">
             <span style={{ display: 'block', fontWeight: 'bold' }}>{user?.nome} ⚙️</span>
             <span style={{ color: '#94a3b8', fontSize: '12px', textTransform: 'capitalize' }}>{cargo || 'Sem Cargo'}</span>
           </div>
@@ -204,8 +230,12 @@ export default function Dashboard() {
           <div style={{ flex: 1 }}>
             {window.location.pathname === '/' && podeVerDashboard && (
               <div style={{ marginBottom: '30px' }}>
-                <h2 style={{ marginTop: 0, color: '#1e293b', marginBottom: '20px' }}>Painel de Controle Estratégico</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '30px' }}>
+                <h2 style={{ marginTop: 0, color: '#1e293b', marginBottom: '20px' }}>
+                  {isVendedor ? '🎯 Meu Desempenho' : 'Painel de Controle Estratégico'}
+                </h2>
+                
+                {/* 🚀 NOVO: Grid ajustável se for vendedor ou admin */}
+                <div style={{ display: 'grid', gridTemplateColumns: (isAdmin || isGerente) ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' }}>
                   <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', borderLeft: '5px solid #10b981' }}>
                     <p style={{ margin: 0, color: '#64748b', fontWeight: 'bold', fontSize: '12px', textTransform: 'uppercase' }}>Vendido Hoje</p>
                     <h2 style={{ margin: '10px 0 0 0', color: '#0f172a', fontSize: '24px' }}>{vendasHoje.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</h2>
@@ -215,30 +245,47 @@ export default function Dashboard() {
                     <h2 style={{ margin: '10px 0 0 0', color: '#0f172a', fontSize: '24px' }}>{vendasMes.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</h2>
                   </div>
                   <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', borderLeft: '5px solid #f59e0b' }}>
-                    <p style={{ margin: 0, color: '#64748b', fontWeight: 'bold', fontSize: '12px', textTransform: 'uppercase' }}>A Receber (Carnês)</p>
+                    <p style={{ margin: 0, color: '#64748b', fontWeight: 'bold', fontSize: '12px', textTransform: 'uppercase' }}>{isVendedor ? 'A Receber (Minhas Vendas)' : 'A Receber (Carnês)'}</p>
                     <h2 style={{ margin: '10px 0 0 0', color: '#0f172a', fontSize: '24px' }}>{receberTotal.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</h2>
                   </div>
-                  <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', borderLeft: '5px solid #ef4444' }}>
-                    <p style={{ margin: 0, color: '#64748b', fontWeight: 'bold', fontSize: '12px', textTransform: 'uppercase' }}>Alertas de Estoque</p>
-                    <h2 style={{ margin: '10px 0 0 0', color: '#0f172a', fontSize: '24px' }}>{estoqueBaixo} produtos</h2>
-                  </div>
+                  
+                  {/* Oculta Alerta de Estoque para o Vendedor */}
+                  {(isAdmin || isGerente) && (
+                    <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', borderLeft: '5px solid #ef4444' }}>
+                      <p style={{ margin: 0, color: '#64748b', fontWeight: 'bold', fontSize: '12px', textTransform: 'uppercase' }}>Alertas de Estoque</p>
+                      <h2 style={{ margin: '10px 0 0 0', color: '#0f172a', fontSize: '24px' }}>{estoqueBaixo} produtos</h2>
+                    </div>
+                  )}
                 </div>
+                
                 <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-                  <h3 style={{ margin: '0 0 15px 0', color: '#1e293b' }}>Últimas Vendas Realizadas</h3>
+                  <h3 style={{ margin: '0 0 15px 0', color: '#1e293b' }}>
+                    {isVendedor ? 'Minhas Últimas Vendas' : 'Últimas Vendas Realizadas'}
+                  </h3>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', color: '#475569', textAlign: 'left' }}>
-                        <th style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}>Talão</th><th style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}>Data</th><th style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}>Cliente</th><th style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}>Pagamento</th><th style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}>Valor Total</th>
+                        <th style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}>Talão</th><th style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}>Data</th><th style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}>Cliente</th>
+                        {/* Se for gerente ou admin, é bom mostrar qual vendedor fez a venda */}
+                        {(!isVendedor) && <th style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}>Vendedor</th>}
+                        <th style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}>Pagamento</th><th style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}>Valor Total</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {ultimasVendas.map(v => (
-                        <tr key={v.id}>
-                          <td style={{ padding: '10px', borderBottom: '1px solid #e2e8f0', fontWeight: 'bold' }}>{formatarCodigo(v.numeroTalao)}</td><td style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}>{v.dataVenda.split('-').reverse().join('/')}</td><td style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}>{v.clienteNome}</td>
-                          <td style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}><span style={{ background: v.formaPagamento === 'Carnê' ? '#fef3c7' : '#dcfce7', color: v.formaPagamento === 'Carnê' ? '#92400e' : '#166534', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>{v.formaPagamento}</span></td>
-                          <td style={{ padding: '10px', borderBottom: '1px solid #e2e8f0', fontWeight: 'bold' }}>{v.valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                        </tr>
-                      ))}
+                      {ultimasVendas.length === 0 ? (
+                        <tr><td colSpan={6} style={{ padding: '15px', textAlign: 'center' }}>Nenhuma venda encontrada.</td></tr>
+                      ) : (
+                        ultimasVendas.map(v => (
+                          <tr key={v.id}>
+                            <td style={{ padding: '10px', borderBottom: '1px solid #e2e8f0', fontWeight: 'bold' }}>{formatarCodigo(v.numeroTalao)}</td>
+                            <td style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}>{v.dataVenda.split('-').reverse().join('/')}</td>
+                            <td style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}>{v.clienteNome}</td>
+                            {(!isVendedor) && <td style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}>{v.vendedor || '-'}</td>}
+                            <td style={{ padding: '10px', borderBottom: '1px solid #e2e8f0' }}><span style={{ background: v.formaPagamento === 'Carnê' ? '#fef3c7' : '#dcfce7', color: v.formaPagamento === 'Carnê' ? '#92400e' : '#166534', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>{v.formaPagamento}</span></td>
+                            <td style={{ padding: '10px', borderBottom: '1px solid #e2e8f0', fontWeight: 'bold' }}>{v.valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -261,21 +308,45 @@ export default function Dashboard() {
         </footer>
       </main>
 
-      {/* MODAL DE PERFIL */}
+      {/* 🚀 MODAL DE PERFIL REFORMULADO E BONITO */}
       {modalPerfil && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="card-formulario" style={{ width: '500px' }}>
-            <h2>Meu Perfil</h2>
-            <form onSubmit={salvarPerfil} style={{ display: 'grid', gap: '10px', gridTemplateColumns: '1fr 1fr' }}>
-              <input type="text" placeholder="Nome Completo" value={perfilNome} onChange={e => setPerfilNome(e.target.value)} style={{ gridColumn: 'span 2' }} />
-              <input type="text" placeholder="CPF" value={perfilCpf} onChange={e => setPerfilCpf(e.target.value)} />
-              <input type="date" title="Data de Nascimento" value={perfilNascimento} onChange={e => setPerfilNascimento(e.target.value)} />
-              <input type="text" placeholder="Telefone" value={perfilTelefone} onChange={e => setPerfilTelefone(e.target.value)} />
-              <input type="password" placeholder="Nova Senha (opcional)" value={novaSenha} onChange={e => setNovaSenha(e.target.value)} />
-              <input type="text" placeholder="Endereço Completo" value={perfilEndereco} onChange={e => setPerfilEndereco(e.target.value)} style={{ gridColumn: 'span 2' }} />
-              <div style={{ gridColumn: 'span 2', display: 'flex', gap: '10px', marginTop: '10px' }}>
-                <button type="submit" style={{ flex: 1, background: '#007bff', color: 'white' }}>Salvar Alterações</button>
-                <button type="button" onClick={() => setModalPerfil(false)} style={{ background: '#dc3545', color: 'white', padding: '10px' }}>Cancelar</button>
+          <div className="card-formulario" style={{ width: '500px', backgroundColor: 'white', borderRadius: '8px', padding: '25px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+            
+            <h2 style={{ marginTop: 0, color: '#1e293b', borderBottom: '2px solid #f1f5f9', paddingBottom: '15px', marginBottom: '20px' }}>
+              👤 Meu Perfil e Acessos
+            </h2>
+
+            <form onSubmit={salvarPerfil} style={{ display: 'grid', gap: '15px', gridTemplateColumns: '1fr 1fr' }}>
+              
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ fontWeight: 'bold', fontSize: '13px', color: '#475569', display: 'block', marginBottom: '5px' }}>Nome Completo</label>
+                <input type="text" value={perfilNome} onChange={e => setPerfilNome(e.target.value)} required style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ fontWeight: 'bold', fontSize: '13px', color: '#475569', display: 'block', marginBottom: '5px' }}>CPF</label>
+                <input type="text" value={perfilCpf} onChange={e => setPerfilCpf(formatarCPF(e.target.value))} maxLength={14} placeholder="000.000.000-00" style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ fontWeight: 'bold', fontSize: '13px', color: '#475569', display: 'block', marginBottom: '5px' }}>Data de Nascimento</label>
+                <input type="date" value={perfilNascimento} onChange={e => setPerfilNascimento(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ fontWeight: 'bold', fontSize: '13px', color: '#475569', display: 'block', marginBottom: '5px' }}>Celular / Telefone</label>
+                <input type="text" value={perfilTelefone} onChange={e => setPerfilTelefone(formatarTelefone(e.target.value))} maxLength={15} placeholder="(00) 00000-0000" style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ fontWeight: 'bold', fontSize: '13px', color: '#0284c7', display: 'block', marginBottom: '5px' }}>Nova Senha (Opcional)</label>
+                <input type="password" placeholder="Digite se quiser alterar..." value={novaSenha} onChange={e => setNovaSenha(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '2px solid #bae6fd', boxSizing: 'border-box' }} />
+              </div>
+
+              <div style={{ gridColumn: 'span 2', display: 'flex', gap: '10px', marginTop: '15px' }}>
+                <button type="submit" style={{ flex: 1, background: '#10b981', color: 'white', padding: '12px', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}>💾 Salvar Alterações</button>
+                <button type="button" onClick={() => setModalPerfil(false)} style={{ background: '#ef4444', color: 'white', padding: '12px', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}>Cancelar</button>
               </div>
             </form>
           </div>
