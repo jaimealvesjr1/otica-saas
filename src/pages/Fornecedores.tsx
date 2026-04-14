@@ -23,6 +23,15 @@ export default function Fornecedores() {
 
   const cadastrarFornecedor = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 🚀 TRAVA DE SEGURANÇA: CNPJ DUPLICADO NA CRIAÇÃO
+    if (cnpj) {
+      const cnpjDuplicado = fornecedores.find(f => f.cnpj === cnpj);
+      if (cnpjDuplicado) {
+        return alert(`⛔ Erro: Já existe um fornecedor cadastrado com o CNPJ ${cnpj} (${cnpjDuplicado.nome}).`);
+      }
+    }
+
     await addDoc(collection(db, 'fornecedores'), {
       nome, cnpj, telefone, email, endereco: { rua, numero, complemento, bairro, cidade, uf }
     });
@@ -33,6 +42,14 @@ export default function Fornecedores() {
   };
 
   const salvarEdicao = async () => {
+    // 🚀 TRAVA DE SEGURANÇA: CNPJ DUPLICADO NA EDIÇÃO
+    if (fornAtual.cnpj) {
+      const cnpjDuplicado = fornecedores.find(f => f.cnpj === fornAtual.cnpj && f.id !== fornAtual.id);
+      if (cnpjDuplicado) {
+        return alert(`⛔ Erro: Já existe OUTRO fornecedor cadastrado com o CNPJ ${fornAtual.cnpj} (${cnpjDuplicado.nome}).`);
+      }
+    }
+
     try {
       await updateDoc(doc(db, 'fornecedores', fornAtual.id), { ...fornAtual });
       alert('Fornecedor atualizado!');
@@ -96,7 +113,6 @@ export default function Fornecedores() {
         </tbody>
       </table>
 
-      {/* MODAL FULL EDIÇÃO DE FORNECEDOR */}
       {modalAberto && fornAtual && (
          <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div className="card-formulario" style={{ width: '600px', maxHeight: '90vh', overflowY: 'auto' }}>

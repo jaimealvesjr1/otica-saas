@@ -20,28 +20,22 @@ export default function Vendas() {
   const [produtos, setProdutos] = useState<any[]>([]);
   const [vendas, setVendas] = useState<any[]>([]);
   
-  // ESTADO NOVO: Guardará o valor do produto que o vendedor digitou
   const [valorUnitarioManual, setValorUnitarioManual] = useState('');
 
-  // Controle de Telas
   const [mostrarForm, setMostrarForm] = useState(false);
   const [etapa, setEtapa] = useState(1);
   const [modalAberto, setModalAberto] = useState(false);
   const [vendaAtual, setVendaAtual] = useState<any>(null);
 
-  // Número do Talão Manual
   const [numeroTalao, setNumeroTalao] = useState('');
 
-  // Etapa 1: Cliente
   const [clienteBusca, setClienteBusca] = useState('');
   const [clienteSelecionado, setClienteSelecionado] = useState<any>(null);
 
-  // Etapa 2: Carrinho
   const [produtoBusca, setProdutoBusca] = useState('');
   const [qtdProduto, setQtdProduto] = useState('1');
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
 
-  // Etapa 3: Pagamento
   const [formaPagamento, setFormaPagamento] = useState('A Vista');
   const [valorEntrada, setValorEntrada] = useState('');
   const [periodicidade, setPeriodicidade] = useState('Mensal');
@@ -61,7 +55,6 @@ export default function Vendas() {
 
   useEffect(() => { carregarDados(); }, []);
 
-  // LÓGICA NOVA: Quando selecionar um produto, puxa o valor dele para a caixinha "Preço Unit."
   useEffect(() => {
     const prod = produtos.find(p => p.nome === produtoBusca);
     if (prod) {
@@ -71,7 +64,6 @@ export default function Vendas() {
     }
   }, [produtoBusca, produtos]);
 
-  // --- INICIAR NOVA VENDA (Pega o número sugerido) ---
   const iniciarNovaVenda = async () => {
     const proximo = await obterProximoCodigo('vendas');
     setNumeroTalao(proximo.toString());
@@ -90,7 +82,6 @@ export default function Vendas() {
     const prodEncontrado = produtos.find(p => p.nome === produtoBusca);
     if (!prodEncontrado) return alert("Selecione um produto válido da lista.");
     
-    // Pega o valor que o vendedor deixou na caixinha
     const valorFinal = parseFloat(valorUnitarioManual.replace(',', '.'));
     if (isNaN(valorFinal)) return alert("Preço inválido.");
 
@@ -102,7 +93,7 @@ export default function Vendas() {
       nome: prodEncontrado.nome, 
       referencia: prodEncontrado.referencia,
       quantidade: qtdNum, 
-      valorUnitario: valorFinal, // Joga pro carrinho o valor com desconto!
+      valorUnitario: valorFinal,
       subtotal: valorFinal * qtdNum
     }]);
     setProdutoBusca(''); 
@@ -121,8 +112,15 @@ export default function Vendas() {
     if (carrinho.length === 0) return alert("O carrinho está vazio!");
     if (!numeroTalao) return alert("Preencha o número do Talão!");
 
+    const talaoFinal = parseInt(numeroTalao);
+
+    // 🚀 TRAVA DE SEGURANÇA: TALÃO DUPLICADO
+    const talaoDuplicado = vendas.find(v => v.numeroTalao === talaoFinal);
+    if (talaoDuplicado) {
+      return alert(`⛔ Erro: O Talão Físico nº ${talaoFinal} já foi lançado no sistema! Verifique o número e tente novamente.`);
+    }
+
     try {
-      const talaoFinal = parseInt(numeroTalao);
       let dadosCarne = null;
 
       if (formaPagamento === 'Carnê') {
@@ -185,22 +183,16 @@ export default function Vendas() {
             <div>
               <h3>Etapa 2: Adicionar Produtos <span style={{fontSize:'14px', color:'#666'}}>(Cliente: {clienteSelecionado?.nome})</span></h3>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', background: '#f8f9fa', padding: '15px', borderRadius: '5px', marginBottom: '15px' }}>
-                
-                {/* CAMPO DE SELECIONAR PRODUTO */}
                 <div style={{ flex: 2 }}>
                   <label style={{ fontWeight: 'bold', fontSize: '12px' }}>Produto / Lente</label>
                   <input type="text" list="produtos-list" value={produtoBusca} onChange={e => setProdutoBusca(e.target.value)} placeholder="Buscar produto..." />
                   <datalist id="produtos-list">{produtos.map(p => <option key={p.id} value={p.nome} />)}</datalist>
                 </div>
-
-                {/* NOVO CAMPO: VALOR EDITÁVEL */}
                 <div style={{ flex: 1 }}>
                   <label style={{ fontWeight: 'bold', fontSize: '12px', color: '#007bff' }}>Preço (R$)</label>
                   <input type="text" value={valorUnitarioManual} onChange={e => setValorUnitarioManual(e.target.value)} style={{ border: '2px solid #007bff' }} />
                 </div>
-
                 <div style={{ flex: 1 }}><label style={{ fontWeight: 'bold', fontSize: '12px' }}>Qtd</label><input type="number" min="1" value={qtdProduto} onChange={e => setQtdProduto(e.target.value)} /></div>
-                
                 <button type="button" onClick={adicionarAoCarrinho} style={{ background: '#28a745', color: 'white', height: '40px' }}>+ Adicionar</button>
               </div>
 
@@ -229,17 +221,14 @@ export default function Vendas() {
           {etapa === 3 && (
             <form onSubmit={finalizarVenda}>
               <h3>Etapa 3: Pagamento e Finalização</h3>
-              
               <div style={{ background: '#e2e8f0', padding: '15px', borderRadius: '5px', marginBottom: '15px', display: 'flex', gap: '15px', alignItems: 'center' }}>
                 <label style={{ fontWeight: 'bold', fontSize: '14px', color: '#1e293b' }}>Nº do Talão Físico:</label>
                 <input type="number" value={numeroTalao} onChange={e => setNumeroTalao(e.target.value)} required style={{ fontSize: '18px', fontWeight: 'bold', width: '150px', textAlign: 'center', border: '2px solid #007bff' }} />
                 <span style={{ fontSize: '12px', color: '#64748b' }}>Edite se não for sequencial.</span>
               </div>
-
               <div style={{ background: '#d4edda', padding: '15px', borderRadius: '5px', marginBottom: '15px', textAlign: 'center' }}>
                 <strong style={{ fontSize: '18px', color: '#155724' }}>Total a Pagar: {valorTotalVenda.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
               </div>
-
               <div>
                 <label style={{ fontWeight: 'bold', fontSize: '13px' }}>Forma de Pagamento</label>
                 <select value={formaPagamento} onChange={e => setFormaPagamento(e.target.value)} style={{ marginBottom: '15px' }}>
@@ -257,7 +246,6 @@ export default function Vendas() {
                   <div><label>1º Vencimento</label><input type="date" value={primeiroVencimento} onChange={e => setPrimeiroVencimento(e.target.value)} required /></div>
                 </div>
               )}
-
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button type="button" onClick={() => setEtapa(2)} style={{ background: '#6c757d', color: 'white' }}>⬅ Voltar</button>
                 <button type="submit" style={{ background: '#28a745', color: 'white', flex: 1 }}>✅ Confirmar e Salvar Venda</button>

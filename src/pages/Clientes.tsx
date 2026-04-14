@@ -64,23 +64,19 @@ export default function Clientes() {
   const [clientes, setClientes] = useState<any[]>([]);
   const [mostrarForm, setMostrarForm] = useState(false);
   
-  // Campos Básicos e Endereço
   const [nome, setNome] = useState(''); const [cpf, setCpf] = useState(''); const [telefone, setTelefone] = useState(''); const [dataNascimento, setDataNascimento] = useState('');
   const [logradouro, setLogradouro] = useState(''); const [numero, setNumero] = useState(''); const [complemento, setComplemento] = useState(''); const [bairro, setBairro] = useState(''); const [cidade, setCidade] = useState('');
 
-  // Dados Clínicos
   const [medico, setMedico] = useState('');
   const [ultimaConsulta, setUltimaConsulta] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [receitaOculos, setReceitaOculos] = useState<ReceitaOculos>(JSON.parse(JSON.stringify(receitaVazia)));
 
-  // Modal, Edição e Histórico de Compras
   const [modalAberto, setModalAberto] = useState(false);
   const [clienteAtual, setClienteAtual] = useState<any>(null);
   const [clienteOriginal, setClienteOriginal] = useState<any>(null); 
   const [modoEdicao, setModoEdicao] = useState(false);
   
-  // NOVO: Estado para guardar as compras do cliente selecionado
   const [comprasCliente, setComprasCliente] = useState<any[]>([]);
 
   const buscarClientes = async () => {
@@ -90,18 +86,25 @@ export default function Clientes() {
 
   useEffect(() => { buscarClientes(); }, []);
 
-  // NOVO: Função que busca as vendas apenas do cliente selecionado
   const carregarComprasDoCliente = async (clienteId: string) => {
     const q = query(collection(db, 'vendas'), where('clienteId', '==', clienteId));
     const snap = await getDocs(q);
     const compras = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    // Ordena da compra mais recente para a mais antiga
     compras.sort((a: any, b: any) => new Date(b.dataVenda).getTime() - new Date(a.dataVenda).getTime());
     setComprasCliente(compras);
   };
 
   const cadastrarCliente = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 🚀 TRAVA DE SEGURANÇA: CPF DUPLICADO NA CRIAÇÃO
+    if (cpf && cpf.length > 0) {
+      const cpfDuplicado = clientes.find(c => c.cpf === cpf);
+      if (cpfDuplicado) {
+        return alert(`⛔ Erro: Já existe um cliente cadastrado com o CPF ${cpf} (${cpfDuplicado.nome}).`);
+      }
+    }
+
     const codigoSeq = await obterProximoCodigo('clientes');
     
     await addDoc(collection(db, 'clientes'), {
@@ -118,6 +121,14 @@ export default function Clientes() {
   };
 
   const salvarEdicao = async () => {
+    // 🚀 TRAVA DE SEGURANÇA: CPF DUPLICADO NA EDIÇÃO
+    if (clienteAtual.cpf && clienteAtual.cpf.length > 0) {
+      const cpfDuplicado = clientes.find(c => c.cpf === clienteAtual.cpf && c.id !== clienteAtual.id);
+      if (cpfDuplicado) {
+        return alert(`⛔ Erro: Já existe OUTRO cliente cadastrado com o CPF ${clienteAtual.cpf} (${cpfDuplicado.nome}).`);
+      }
+    }
+
     try {
       let dadosClinicosAtualizados = { ...clienteAtual.dadosClinicos };
       const clinicoOriginalStr = JSON.stringify(clienteOriginal.dadosClinicos || {});
@@ -168,7 +179,6 @@ export default function Clientes() {
       {mostrarForm && (
         <div className="card-formulario no-print" style={{ marginBottom: '20px' }}>
           <form onSubmit={cadastrarCliente} style={{ display: 'grid', gap: '15px', gridTemplateColumns: '1fr 1fr' }}>
-            
             <h4 style={{ gridColumn: 'span 2', borderBottom: '1px solid #eee', margin: 0 }}>Dados Pessoais</h4>
             <div><label>Nome Completo</label><input type="text" value={nome} onChange={e => setNome(e.target.value)} required /></div>
             <div><label>Celular / Telefone</label><input type="text" value={telefone} onChange={e => setTelefone(formatarTelefone(e.target.value))} required maxLength={15} /></div>
@@ -220,7 +230,7 @@ export default function Clientes() {
                     setClienteOriginal(JSON.parse(JSON.stringify(c))); 
                     setModoEdicao(false); 
                     setModalAberto(true); 
-                    carregarComprasDoCliente(c.id); // 🚀 NOVO: Carrega as compras quando abre o modal!
+                    carregarComprasDoCliente(c.id); 
                   }} style={{background: '#17a2b8', color: 'white', fontSize: '12px', padding: '5px 10px'}}>Abrir Prontuário</button>
                 </td>
              </tr>
@@ -305,7 +315,7 @@ export default function Clientes() {
                   </div>
                 )}
 
-                {/* 🚀 NOVO: SESSÃO HISTÓRICO DE COMPRAS (VENDAS) 🚀 */}
+                {/* 🚀 SESSÃO HISTÓRICO DE COMPRAS (VENDAS) 🚀 */}
                 <hr style={{ margin: '30px 0', border: '0.5px solid #e2e8f0' }}/>
                 <h3 style={{ color: '#0f172a' }}>🛍️ Histórico Comercial (Compras)</h3>
                 
