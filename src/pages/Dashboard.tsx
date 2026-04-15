@@ -16,7 +16,7 @@ export default function Dashboard() {
   // ⏳ LÓGICA DO CONTADOR REGRESSIVO DE TESTE
   // --------------------------------------------------------
   const [tempoRestante, setTempoRestante] = useState("");
-  const dataFimTeste = new Date('2026-04-21T23:59:59').getTime();
+  const dataFimTeste = new Date('2026-04-24T23:59:59').getTime();
 
   useEffect(() => {
     const intervalo = setInterval(() => {
@@ -303,7 +303,7 @@ export default function Dashboard() {
         )}
 
         <footer className="no-print" style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px solid #e2e8f0', color: '#64748b', fontSize: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div><p style={{ margin: 0 }}>&copy; {new Date().getFullYear()} · <span style={{ background: 'green', padding: '2px 8px', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#ffffff' }}>Alpha v1.0.1 - Correção no Controle de Estoque</span></p></div>
+          <div><p style={{ margin: 0 }}>&copy; {new Date().getFullYear()} · <span style={{ background: 'green', padding: '2px 8px', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#ffffff' }}>Alpha v1.0.2 - Ajustes no prontuário do cliente</span></p></div>
           <div style={{ textAlign: 'right' }}><p style={{ margin: 0, fontSize: '12px' }}>🚀 by <img src="/icon_ascentia.png" alt="Ascentia" style={{ height: '1.2em', verticalAlign: 'middle', opacity: 0.7, margin: '0 4px' }} /><strong>Ascentia</strong> · para <strong>Ótica Milenium</strong><br/><em>Tecnologia com propósito!</em></p></div>
         </footer>
       </main>
